@@ -26,10 +26,7 @@
 		<Item Name="Tests" Type="Folder">
 			<Item Name="Launch Root Actor_Actor_Generates Actor Traces.vi" Type="VI" URL="../Testing/Tests/Launch Root Actor_Actor_Generates Actor Traces.vi"/>
 		</Item>
-		<Item Name="Time-Delayed Send Message" Type="Folder">
-			<Item Name="Time-Delayed Send Message Core.vi" Type="VI" URL="../ActorFramework/Time-Delayed Send Message/Time-Delayed Send Message Core.vi"/>
-			<Item Name="Time-Delayed Send Message.vi" Type="VI" URL="../ActorFramework/Time-Delayed Send Message/Time-Delayed Send Message.vi"/>
-		</Item>
+		<Item Name="Time-Delayed Send Message" Type="Folder"/>
 		<Item Name="Actor Framework.lvlib" Type="Library" URL="../ActorFramework/Actor Framework.lvlib"/>
 		<Item Name="AF Debug.lvlib" Type="Library" URL="../AFDebug/AF Debug.lvlib"/>
 		<Item Name="Register Actor Msg.lvclass" Type="LVClass" URL="../AFDebug/Register Actor Msg/Register Actor Msg.lvclass"/>

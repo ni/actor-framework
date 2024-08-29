@@ -12,6 +12,11 @@
 
 </Property>
 	<Item Name="Messages" Type="Folder">
+		<Item Name="Time-Delayed Send Message" Type="Folder">
+			<Item Name="Time-Delayed Send Message Core.vi" Type="VI" URL="../Time-Delayed Send Message/Time-Delayed Send Message Core.vi"/>
+			<Item Name="Time-Delayed Send Message.vi" Type="VI" URL="../Time-Delayed Send Message/Time-Delayed Send Message.vi"/>
+			<Item Name="Time-Delay Override Options.ctl" Type="VI" URL="../Time-Delayed Send Message/Time-Delay Override Options.ctl"/>
+		</Item>
 		<Item Name="Last Ack.lvclass" Type="LVClass" URL="../LastAck/Last Ack.lvclass"/>
 		<Item Name="Launch Nested Actor Msg.lvclass" Type="LVClass" URL="../Launch Nested Actor Msg/Launch Nested Actor Msg.lvclass">
 			<Property Name="NI.LibItem.Scope" Type="Int">2</Property>
@@ -19,29 +24,28 @@
 		<Item Name="Message.lvclass" Type="LVClass" URL="../Message/Message.lvclass"/>
 		<Item Name="Stop Msg.lvclass" Type="LVClass" URL="../Stop Msg/Stop Msg.lvclass"/>
 	</Item>
-	<Item Name="tracing" Type="Folder">
+	<Item Name="Tracing" Type="Folder">
 		<Property Name="NI.LibItem.Scope" Type="Int">1</Property>
 		<Item Name="support" Type="Folder">
-			<Item Name="Time-Delay Override Options.ctl" Type="VI" URL="../Time-Delayed Send Message/Time-Delay Override Options.ctl"/>
-			<Item Name="Actor Registry.vi" Type="VI" URL="../../AFDebug/Actor Registry.vi"/>
-			<Item Name="Generate Trace.vi" Type="VI" URL="../../AFDebug/Generate Trace.vi"/>
-			<Item Name="Get Clone Name.vi" Type="VI" URL="../../AFDebug/Get Clone Name.vi"/>
-			<Item Name="Localized Strings.vi" Type="VI" URL="../../AFDebug/Localized Strings.vi"/>
-			<Item Name="Registration Mode.ctl" Type="VI" URL="../../AFDebug/Registration Mode.ctl"/>
-			<Item Name="TDM Registration Mode.ctl" Type="VI" URL="../../AFDebug/TDM Registration Mode.ctl"/>
-			<Item Name="TDM Registry.vi" Type="VI" URL="../../AFDebug/TDM Registry.vi"/>
-			<Item Name="This Actor.ctl" Type="VI" URL="../../AFDebug/This Actor.ctl"/>
+			<Item Name="Actor Registry.vi" Type="VI" URL="../tracing/Support/Actor Registry.vi"/>
+			<Item Name="Generate Trace.vi" Type="VI" URL="../tracing/Support/Generate Trace.vi"/>
+			<Item Name="Get Clone Name.vi" Type="VI" URL="../tracing/Support/Get Clone Name.vi"/>
+			<Item Name="Localized Strings.vi" Type="VI" URL="../tracing/Support/Localized Strings.vi"/>
+			<Item Name="Registration Mode.ctl" Type="VI" URL="../tracing/Support/Registration Mode.ctl"/>
+			<Item Name="TDM Registration Mode.ctl" Type="VI" URL="../tracing/Support/TDM Registration Mode.ctl"/>
+			<Item Name="TDM Registry.vi" Type="VI" URL="../tracing/Support/TDM Registry.vi"/>
+			<Item Name="This Actor.ctl" Type="VI" URL="../tracing/Support/This Actor.ctl"/>
 		</Item>
 		<Item Name="Trace Generation" Type="Folder">
-			<Item Name="Generate Custom Trace.vi" Type="VI" URL="../../AFDebug/Generate Custom Trace.vi"/>
-			<Item Name="Generate Trace for Dropped Message.vi" Type="VI" URL="../../AFDebug/Generate Trace for Dropped Message.vi"/>
-			<Item Name="Generate Trace for Message.vi" Type="VI" URL="../../AFDebug/Generate Trace for Message.vi"/>
-			<Item Name="Generate Trace for New Actor.vi" Type="VI" URL="../../AFDebug/Generate Trace for New Actor.vi"/>
-			<Item Name="Generate Trace for New Time Delayed Message.vi" Type="VI" URL="../../AFDebug/Generate Trace for New Time Delayed Message.vi"/>
-			<Item Name="Generate Trace for Received Message.vi" Type="VI" URL="../../AFDebug/Generate Trace for Received Message.vi"/>
-			<Item Name="Generate Trace for Skipped Time-Delayed Message.vi" Type="VI" URL="../../AFDebug/Generate Trace for Skipped Time-Delayed Message.vi"/>
-			<Item Name="Generate Trace for Stopped Actor.vi" Type="VI" URL="../../AFDebug/Generate Trace for Stopped Actor.vi"/>
-			<Item Name="Generate Trace for Stopped Time-Delayed Message.vi" Type="VI" URL="../../AFDebug/Generate Trace for Stopped Time-Delayed Message.vi"/>
+			<Item Name="Generate Custom Trace.vi" Type="VI" URL="../tracing/Trace Generation/Generate Custom Trace.vi"/>
+			<Item Name="Generate Trace for Dropped Message.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for Dropped Message.vi"/>
+			<Item Name="Generate Trace for Message.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for Message.vi"/>
+			<Item Name="Generate Trace for New Actor.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for New Actor.vi"/>
+			<Item Name="Generate Trace for New Time Delayed Message.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for New Time Delayed Message.vi"/>
+			<Item Name="Generate Trace for Received Message.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for Received Message.vi"/>
+			<Item Name="Generate Trace for Skipped Time-Delayed Message.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for Skipped Time-Delayed Message.vi"/>
+			<Item Name="Generate Trace for Stopped Actor.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for Stopped Actor.vi"/>
+			<Item Name="Generate Trace for Stopped Time-Delayed Message.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for Stopped Time-Delayed Message.vi"/>
 		</Item>
 		<Item Name="AF Trace Format.lvclass" Type="LVClass" URL="../tracing/AF Trace Format/AF Trace Format.lvclass"/>
 	</Item>
