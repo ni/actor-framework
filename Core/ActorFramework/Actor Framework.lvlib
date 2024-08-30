@@ -48,6 +48,10 @@
 			<Item Name="Generate Trace for Stopped Time-Delayed Message.vi" Type="VI" URL="../tracing/Trace Generation/Generate Trace for Stopped Time-Delayed Message.vi"/>
 		</Item>
 		<Item Name="AF Trace Format.lvclass" Type="LVClass" URL="../tracing/AF Trace Format/AF Trace Format.lvclass"/>
+		<Item Name="Protected Actor Handle.lvclass" Type="LVClass" URL="../tracing/Protected Actor Handle/Protected Actor Handle.lvclass"/>
+		<Item Name="Ping Msg.lvclass" Type="LVClass" URL="../tracing/Ping msg/Ping Msg.lvclass"/>
+		<Item Name="Get Registry Update Event.vi" Type="VI" URL="../tracing/Get Registry Update Event.vi"/>
+		<Item Name="Get Actor Handles.vi" Type="VI" URL="../tracing/Get Actor Handles.vi"/>
 	</Item>
 	<Item Name="Actor.lvclass" Type="LVClass" URL="../Actor/Actor.lvclass"/>
 	<Item Name="Message Dequeuer.lvclass" Type="LVClass" URL="../Message Dequeuer/Message Dequeuer.lvclass"/>

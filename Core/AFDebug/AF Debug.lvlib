@@ -41,10 +41,9 @@
 	<Item Name="Client Interface" Type="Folder">
 		<Item Name="Get Actor Handles.vi" Type="VI" URL="../../ActorFramework/tracing/Support/Get Actor Handles.vi"/>
 		<Item Name="Get Registry Update Event.vi" Type="VI" URL="../../ActorFramework/tracing/Support/Get Registry Update Event.vi"/>
-		<Item Name="Protected Actor Handle.lvclass" Type="LVClass" URL="../Protected Actor Handle/Protected Actor Handle.lvclass"/>
 	</Item>
 	<Item Name="Debug Messages" Type="Folder">
-		<Item Name="Ping Msg.lvclass" Type="LVClass" URL="../Ping msg/Ping Msg.lvclass"/>
+		<Item Name="Register Actor Msg.lvclass" Type="LVClass" URL="../Register Actor Msg/Register Actor Msg.lvclass"/>
 	</Item>
 	<Item Name="Tracing" Type="Folder">
 		<Item Name="DETT Format.lvclass" Type="LVClass" URL="../Tracing/DETT Format/DETT Format.lvclass"/>

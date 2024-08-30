@@ -26,10 +26,8 @@
 		<Item Name="Tests" Type="Folder">
 			<Item Name="Launch Root Actor_Actor_Generates Actor Traces.vi" Type="VI" URL="../Testing/Tests/Launch Root Actor_Actor_Generates Actor Traces.vi"/>
 		</Item>
-		<Item Name="Time-Delayed Send Message" Type="Folder"/>
 		<Item Name="Actor Framework.lvlib" Type="Library" URL="../ActorFramework/Actor Framework.lvlib"/>
 		<Item Name="AF Debug.lvlib" Type="Library" URL="../AFDebug/AF Debug.lvlib"/>
-		<Item Name="Register Actor Msg.lvclass" Type="LVClass" URL="../AFDebug/Register Actor Msg/Register Actor Msg.lvclass"/>
 		<Item Name="Dependencies" Type="Dependencies">
 			<Item Name="vi.lib" Type="Folder">
 				<Item Name="7842910552F72B45FFAA5B67DFEBCBC5Array Size(s)__ogtk.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/_Caraya_internal_deps/7842910552F72B45FFAA5B67DFEBCBC5Array Size(s)__ogtk.vi"/>
