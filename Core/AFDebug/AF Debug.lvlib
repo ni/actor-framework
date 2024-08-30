@@ -38,14 +38,10 @@
 	<Item Name="Friends List" Type="Friends List">
 		<Item Name="Actor Framework.lvlib:Actor.lvclass:Launch Actor.vi" Type="Friended VI" URL="../../ActorFramework/Actor/Launch Actor.vi"/>
 	</Item>
-	<Item Name="Client Interface" Type="Folder">
-		<Item Name="Get Actor Handles.vi" Type="VI" URL="../../ActorFramework/tracing/Support/Get Actor Handles.vi"/>
-		<Item Name="Get Registry Update Event.vi" Type="VI" URL="../../ActorFramework/tracing/Support/Get Registry Update Event.vi"/>
-	</Item>
-	<Item Name="Debug Messages" Type="Folder">
-		<Item Name="Register Actor Msg.lvclass" Type="LVClass" URL="../Register Actor Msg/Register Actor Msg.lvclass"/>
-	</Item>
-	<Item Name="Tracing" Type="Folder">
-		<Item Name="DETT Format.lvclass" Type="LVClass" URL="../DETT Format/DETT Format.lvclass"/>
-	</Item>
+	<Item Name="DETT Format.lvclass" Type="LVClass" URL="../DETT Format/DETT Format.lvclass"/>
+	<Item Name="Generate Custom Trace.vi" Type="VI" URL="../Generate Custom Trace.vi"/>
+	<Item Name="Get Actor Handles.vi" Type="VI" URL="../Get Actor Handles.vi"/>
+	<Item Name="Get Registry Update Event.vi" Type="VI" URL="../Get Registry Update Event.vi"/>
+	<Item Name="Protected Actor Handle.lvclass" Type="LVClass" URL="../Protected Actor Handle/Protected Actor Handle.lvclass"/>
+	<Item Name="Register Actor Msg.lvclass" Type="LVClass" URL="../Register Actor Msg/Register Actor Msg.lvclass"/>
 </Library>
