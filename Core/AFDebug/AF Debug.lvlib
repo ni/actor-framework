@@ -46,6 +46,6 @@
 		<Item Name="Register Actor Msg.lvclass" Type="LVClass" URL="../Register Actor Msg/Register Actor Msg.lvclass"/>
 	</Item>
 	<Item Name="Tracing" Type="Folder">
-		<Item Name="DETT Format.lvclass" Type="LVClass" URL="../Tracing/DETT Format/DETT Format.lvclass"/>
+		<Item Name="DETT Format.lvclass" Type="LVClass" URL="../DETT Format/DETT Format.lvclass"/>
 	</Item>
 </Library>
