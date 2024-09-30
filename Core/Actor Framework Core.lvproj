@@ -1,6 +1,6 @@
 ﻿<?xml version='1.0' encoding='UTF-8'?>
 <Project Type="Project" LVVersion="20008000">
-	<Property Name="CCSymbols" Type="Str">AF_Debug_Trace,TRUE;</Property>
+	<Property Name="CCSymbols" Type="Str">AF_Debug_Trace,False;</Property>
 	<Property Name="NI.LV.All.SaveVersion" Type="Str">20.0</Property>
 	<Property Name="NI.LV.All.SourceOnly" Type="Bool">true</Property>
 	<Property Name="NI.Project.Description" Type="Str"></Property>
@@ -21,10 +21,12 @@
 			<Item Name="Self-Addressed Msg.lvclass" Type="LVClass" URL="../ActorFramework/Self-Addressed Msg/Self-Addressed Msg.lvclass"/>
 		</Item>
 		<Item Name="Test Harness" Type="Folder">
+			<Item Name="Actor with Nesteds.lvlib" Type="Library" URL="../Testing/Test Harness/Actor with Nesteds/Actor with Nesteds.lvlib"/>
 			<Item Name="AF Trace Queue.lvclass" Type="LVClass" URL="../Testing/Test Harness/AF Trace Queue/AF Trace Queue.lvclass"/>
 		</Item>
 		<Item Name="Tests" Type="Folder">
 			<Item Name="Launch Root Actor_Actor_Generates Actor Traces.vi" Type="VI" URL="../Testing/Tests/Launch Root Actor_Actor_Generates Actor Traces.vi"/>
+			<Item Name="Stop Autostop Nested Actors_Stops Nested Actors.vi" Type="VI" URL="../Testing/Tests/Stop Autostop Nested Actors_Stops Nested Actors.vi"/>
 		</Item>
 		<Item Name="Actor Framework.lvlib" Type="Library" URL="../ActorFramework/Actor Framework.lvlib"/>
 		<Item Name="AF Debug.lvlib" Type="Library" URL="../AFDebug/AF Debug.lvlib"/>
