@@ -1,7 +1,7 @@
-<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-10-01 14:27:19" Creator="allen" Comments="" ID="9475cb6b0d3b0ebe9407666d1ae91b6d">
+<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-10-02 14:51:46" Creator="allen" Comments="" ID="8784878b39604d7a24f2a01004480c3a">
   <Library_General_Settings>
     <Package_File_Name>Actor_Framework_2024_for_2020</Package_File_Name>
-    <Library_Version>2.0.0.10</Library_Version>
+    <Library_Version>2.0.0.13</Library_Version>
     <Auto_Increment_Version>false</Auto_Increment_Version>
     <Library_Source_Folder>.</Library_Source_Folder>
     <Library_Output_Folder>..\Builds</Library_Output_Folder>
@@ -486,7 +486,7 @@
         <Path>ActorFramework\Palette Items\Last Ack Constant.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>40471604893E104B3E89F71767ABB06E</GUID>
+      <GUID>E62D4F495CFD397130B63F203405A2A1</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>0</Parent_Palette_Index>
@@ -633,7 +633,7 @@
         <Path>ActorFramework\tracing\Generate Custom Trace.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>930F27DFB8B231E6C35EB2FAC75E46E7</GUID>
+      <GUID>65AB724EBD0BB9B52CFC95B48E2FEC08</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>1</Parent_Palette_Index>
@@ -766,7 +766,7 @@
         <Path>ActorFramework\Message Queue\Release Message Queue.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>6D52814CB649CCFFA110C81E30D7830C</GUID>
+      <GUID>986047436CDC7E6739938329348327D8</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>1</Parent_Palette_Index>
@@ -829,7 +829,7 @@
         <Path>ActorFramework\Actor\Init Actor Queues FOR TESTING ONLY.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>57BE1323AB615E58FC7B360BA3B2C6EA</GUID>
+      <GUID>2C4894DD279D3554D1B197F0AB8E6C8F</GUID>
     </Functions_Palette_Data>
     <Controls_Palette_Data>
       <Parent_Palette_Index>-1</Parent_Palette_Index>
@@ -878,7 +878,7 @@
         <Path>ActorFramework\Palette Items\Last Ack Control.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>E4919C2B12DC1DF68A0CF5E701A6AE21</GUID>
+      <GUID>BAE8AB85DBC60CCB2C8A46BCE14BE076</GUID>
     </Controls_Palette_Data>
   </Library_Palette_Definition>
 </VI_Package_Builder_Settings>

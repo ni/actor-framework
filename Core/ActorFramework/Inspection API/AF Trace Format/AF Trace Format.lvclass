@@ -5,7 +5,7 @@
 	<Property Name="NI.Lib.Icon" Type="Bin">)!#!!!!!!!)!"1!&amp;!!!-!%!!!@````]!!!!"!!%!!!*&amp;!!!*Q(C=\&gt;5R&lt;BJ"&amp;-&lt;RTZ',N.QAJH56P3NQ";\QLE",19%M+UL+6[&lt;F#FTBEX)#J*S!+Z$`$!0',ESER%I+\`D:ST=\-T^W2WOJ(R_F7RWO(@?P(L`6@TH,CRG0HS[CQ`/T=``B7:X/,PJ0!XI&gt;WYP_Y^BT``X4_$`]@K`W8THU@LQ@``:98NWE&lt;\ZH&lt;^2?2*3JIJ)+N;5/*D?ZS5VO=J-8?:%8?:%8?:%H?:)H?:)H?:)(?:!(?:!(?:$X2CZSE9M=EFH=,'1G.2/9C[()`$)?YT%?Y_'DD-&gt;YD-&gt;YD)&gt;,:$T'9TT'9TQ-E`%9D`%9D`%Q6:?Y.X)]RM0U+DS&amp;J`!5HM,$ECI]";"9L*CYG!3'CM\CJ0!5HM,$K1J0Y3E]B;@QU+X#5XA+4_%J0!TJ&gt;[7[JD6S0%SDR*.Y%E`C34R-L=34?"*0YEE],+@%EXA32,*A-DE%*9/3#Z)0C3@R]%?**`%EHM34?/DK4SD\H7G;VMDR"*\!%XA#4_"B#A7?Q".Y!E`A96I&amp;HM!4?!*0Y'%J":\!%XA#3,!ISSO9,"A98"1%A9?@PFOC0[8KEOB.'JN89V.K&lt;$;.4;3R/41?OM&lt;$V(B)'D&gt;@Y[:KX#S.G[$RZ441'BC.241'NQOVZ`?/WF)&lt;;EUNK$EVI[&lt;5J!X^SR@O^XPN&gt;DNNNVNN.BONVWMN&amp;AP.ZX0.:D..JV..*J0T;_!4\@R#/,[8FJSX_K+@.SMN\V&lt;_]8HV^?(\[P(BW[GPV2P^,`U0XIX[I-NZO5?`!,XZ@Z%!!!!!</Property>
 	<Property Name="NI.Lib.SourceVersion" Type="Int">536903680</Property>
 	<Property Name="NI.Lib.Version" Type="Str">1.0.0.0</Property>
-	<Property Name="NI.LV.All.SourceOnly" Type="Bool">false</Property>
+	<Property Name="NI.LV.All.SourceOnly" Type="Bool">true</Property>
 	<Property Name="NI.LVClass.ClassNameVisibleInProbe" Type="Bool">true</Property>
 	<Property Name="NI.LVClass.IsInterface" Type="Bool">true</Property>
 	<Property Name="NI.LVClass.LowestCompatibleVersion" Type="Str">1.0.0.0</Property>

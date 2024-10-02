@@ -195,9 +195,6 @@
 			<Item Name="LV Config Read Pathlist.vi" Type="VI" URL="/&lt;resource&gt;/dialog/lvconfig.llb/LV Config Read Pathlist.vi"/>
 			<Item Name="LV Config Read String.vi" Type="VI" URL="/&lt;resource&gt;/dialog/lvconfig.llb/LV Config Read String.vi"/>
 			<Item Name="LV Config Read.vi" Type="VI" URL="/&lt;resource&gt;/dialog/lvconfig.llb/LV Config Read.vi"/>
-			<Item Name="Populate Zip File.vi" Type="VI" URL="../Install Support/Populate Zip File.vi"/>
-			<Item Name="Restore Framework.vi" Type="VI" URL="../Install Support/Restore Framework.vi"/>
-			<Item Name="Stash Framework.vi" Type="VI" URL="../Install Support/Stash Framework.vi"/>
 			<Item Name="systemLogging.dll" Type="Document" URL="systemLogging.dll">
 				<Property Name="NI.PreserveRelativePath" Type="Bool">true</Property>
 			</Item>
