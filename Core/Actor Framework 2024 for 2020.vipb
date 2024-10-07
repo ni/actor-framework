@@ -1,7 +1,7 @@
-<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-08-30 14:23:23" Creator="allen" Comments="" ID="7e5c024ad2b37024bf6c1f6942087fca">
+<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-08-23 14:23:06" Creator="allen" Comments="" ID="8deb238304dce944dd111882e3dffb50">
   <Library_General_Settings>
     <Package_File_Name>Actor_Framework_2024_for_2020</Package_File_Name>
-    <Library_Version>2.0.0.9</Library_Version>
+    <Library_Version>1.0.0.8</Library_Version>
     <Auto_Increment_Version>false</Auto_Increment_Version>
     <Library_Source_Folder>.</Library_Source_Folder>
     <Library_Output_Folder>..\Builds</Library_Output_Folder>
@@ -27,18 +27,12 @@
     </Custom_Action_VIs>
     <VI_Package_Configuration_File>Actor Framework 2024 for 2020.vipc</VI_Package_Configuration_File>
     <Description>
-      <One_Line_Description_Summary>Actor Framework reorganized for improved PPL builds.</One_Line_Description_Summary>
+      <One_Line_Description_Summary>Backport of Actor Framework 2024 for 2020 and later.</One_Line_Description_Summary>
       <Description/>
       <Copyright>Copyright (c) 2024, NI</Copyright>
       <Packager>Allen C Smith</Packager>
       <URL/>
-      <Release_Notes>This version is a major reorganization of the Actor Framework core libraries to facilitate PPL builds, with minimal changes to functionality.
-
-1.  Almost all of the contents of AF Debug.lvlib have been moved into Actor Framework.lvlib.  AF Debug.lvlib now only contains the code that sends traces to Desktop Execution Trace Toolkit and a few compatibility remnants.  DETT trace code is now encapsulated in a class (DETT Format.lvclass) that inherits from an interface (Trace Format.lvlcass) that resides in Actor Framework.lvlib.
-
-2.  Generate Trace.vi now dynamically loads a trace format.  If no trace format is specified, Generate Trace.vi will load DETT Format.lvclass as the default.  If users add the token AFDebugTraceFormat to their LabVIEW INI file, Generate Trace.vi will load that format instead.  AFDebugTraceFormat is a path saved as a string.
-
-3.  Actor registration has been streamlined; Actor.vi no longer has to send Register Actor Msg.lvclass to the new actor to complete registration.  Registration is performed directly in Actor Core.vi, just before message handling starts.</Release_Notes>
+      <Release_Notes>Added pre- and post- install actions to stash and restore the system's original Actor Framwork files.</Release_Notes>
     </Description>
     <Destinations>
       <Toolkit_VIs>
@@ -132,6 +126,24 @@
         <Additional_Destination_Index>0</Additional_Destination_Index>
       </Destination_Overrides>
       <Destination_Overrides>
+        <Path>Post-Install Custom Action.vi</Path>
+        <Destination>0</Destination>
+        <Additional_Destination>true</Additional_Destination>
+        <Additional_Destination_Index>1</Additional_Destination_Index>
+      </Destination_Overrides>
+      <Destination_Overrides>
+        <Path>Pre-Install Custom Action.vi</Path>
+        <Destination>0</Destination>
+        <Additional_Destination>true</Additional_Destination>
+        <Additional_Destination_Index>1</Additional_Destination_Index>
+      </Destination_Overrides>
+      <Destination_Overrides>
+        <Path>Build Support</Path>
+        <Destination>0</Destination>
+        <Additional_Destination>true</Additional_Destination>
+        <Additional_Destination_Index>1</Additional_Destination_Index>
+      </Destination_Overrides>
+      <Destination_Overrides>
         <Path>Install Support</Path>
         <Destination>0</Destination>
         <Additional_Destination>true</Additional_Destination>
@@ -158,15 +170,6 @@
       </Exclusions>
       <Exclusions>
         <Path>actorframework.mnu</Path>
-      </Exclusions>
-      <Exclusions>
-        <Path>Testing</Path>
-      </Exclusions>
-      <Exclusions>
-        <Path>AF PPL Build.lvproj</Path>
-      </Exclusions>
-      <Exclusions>
-        <Path>builds</Path>
       </Exclusions>
       <Place_Folder_Contents>
         <Path/>
