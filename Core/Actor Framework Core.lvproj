@@ -14,7 +14,7 @@
 		<Property Name="server.vi.callsEnabled" Type="Bool">true</Property>
 		<Property Name="server.vi.propertiesEnabled" Type="Bool">true</Property>
 		<Property Name="specify.custom.address" Type="Bool">false</Property>
-		<Item Name="Additional Messages" Type="Folder">
+		<Item Name="Deprecated Messages" Type="Folder">
 			<Item Name="Batch Msg.lvclass" Type="LVClass" URL="../ActorFramework/Batch Msg/Batch Msg.lvclass"/>
 			<Item Name="Reply Msg.lvclass" Type="LVClass" URL="../ActorFramework/Reply Msg/Reply Msg.lvclass"/>
 			<Item Name="Report Error Msg.lvclass" Type="LVClass" URL="../ActorFramework/Report Error Msg/Report Error Msg.lvclass"/>
@@ -43,6 +43,7 @@
 		</Item>
 		<Item Name="Actor Framework.lvlib" Type="Library" URL="../ActorFramework/Actor Framework.lvlib"/>
 		<Item Name="AF Debug.lvlib" Type="Library" URL="../AFDebug/AF Debug.lvlib"/>
+		<Item Name="AF Specialty Messages.lvlib" Type="Library" URL="../ActorFramework/AF Specialty Messages.lvlib"/>
 		<Item Name="Dependencies" Type="Dependencies">
 			<Item Name="vi.lib" Type="Folder">
 				<Item Name="7842910552F72B45FFAA5B67DFEBCBC5Array Size(s)__ogtk.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/_Caraya_internal_deps/7842910552F72B45FFAA5B67DFEBCBC5Array Size(s)__ogtk.vi"/>
