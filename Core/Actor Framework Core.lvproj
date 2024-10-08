@@ -44,6 +44,7 @@
 		<Item Name="Actor Framework.lvlib" Type="Library" URL="../ActorFramework/Actor Framework.lvlib"/>
 		<Item Name="AF Debug.lvlib" Type="Library" URL="../AFDebug/AF Debug.lvlib"/>
 		<Item Name="AF Specialty Messages.lvlib" Type="Library" URL="../ActorFramework/AF Specialty Messages.lvlib"/>
+		<Item Name="Casting Utility For Actors.vim" Type="VI" URL="../ActorFramework/Actor/Casting Utility For Actors.vim"/>
 		<Item Name="Dependencies" Type="Dependencies">
 			<Item Name="vi.lib" Type="Folder">
 				<Item Name="7842910552F72B45FFAA5B67DFEBCBC5Array Size(s)__ogtk.vi" Type="VI" URL="/&lt;vilib&gt;/addons/_JKI Toolkits/_Caraya_internal_deps/7842910552F72B45FFAA5B67DFEBCBC5Array Size(s)__ogtk.vi"/>

@@ -1,7 +1,7 @@
-<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-10-07 15:17:20" Creator="allen" Comments="" ID="57f1d1ef91e9aca08dc7325aef29e7b7">
+<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-10-08 09:34:45" Creator="allen" Comments="" ID="f33562237a3a988351cdc4ef57f9a88f">
   <Library_General_Settings>
     <Package_File_Name>Actor_Framework_2024_for_2020</Package_File_Name>
-    <Library_Version>2.0.0.15</Library_Version>
+    <Library_Version>2.0.0.18</Library_Version>
     <Auto_Increment_Version>false</Auto_Increment_Version>
     <Library_Source_Folder>.</Library_Source_Folder>
     <Library_Output_Folder>..\Builds</Library_Output_Folder>
@@ -28,29 +28,23 @@
     <VI_Package_Configuration_File>Actor Framework 2024 for 2020.vipc</VI_Package_Configuration_File>
     <Description>
       <One_Line_Description_Summary>Actor Framework reorganized for improved PPL builds.</One_Line_Description_Summary>
-      <Description>This version is a major reorganization of the Actor Framework core libraries to facilitate PPL builds, with minimal changes to functionality.  Developers should be able to seamlessly update to this version of the framework, and then leverage its features and changes at their convenience.
+      <Description>This product updates the core Actor Framework libraries that ship with LabVIEW - Actor Framework.lvlib and AF Debug.lvlib.
 
-1.  Almost all of the contents of AF Debug.lvlib have been moved into Actor Framework.lvlib.  AF Debug.lvlib now only contains the code that sends traces to Desktop Execution Trace Toolkit and a few compatibility remnants.  DETT trace code is now encapsulated in a class (DETT Format.lvclass) that inherits from an interface (Trace Format.lvlcass) that resides in Actor Framework.lvlib.
+The versions of these libraries that ship with LabVIEW 2024 Q3 have been backported for use with LabVIEW 2020 or later.  If you are working in one of these earlier versions, you can now take advantage of Uninit.vi, a new dynamic dispatch member of Actor.lvclass,  plus a small number of minor bug fixes.
 
-2.  Generate Trace.vi now dynamically loads a trace format.  If no trace format is specified, Generate Trace.vi will load DETT Format.lvclass as the default.  If developers add the token AFDebugTraceFormat to their LabVIEW INI file, Generate Trace.vi will load that format instead.  AFDebugTraceFormat is a path saved as a string.
+In addition, this version contains a major reorganization of the Actor Framework core libraries to facilitate PPL builds, with minimal changes to functionality.  Developers should be able to seamlessly update to this version of the framework, and then leverage its features and changes at their convenience.
 
-3.  Actor registration has been streamlined; Actor.vi no longer has to send Register Actor Msg.lvclass to the new actor to complete registration.  Registration is performed directly in Actor Core.vi, just before message handling starts.
+Finally, we have added a protected method to Actor.lvclass that sends a Normal Stop to its nested autostop actors, and we have added a few productivity and test support items to the palettes.  Please see the Release Notes for details.
 
-4.  Stop Autostop Nested Actors.vi has been added.  Use this protected method to stop all of your autostop nested actors without stopping the actor.
+As a pre-install action, this package will archive your existing core libraries and palettes.  Should you wish to uninstall this package, your original libraries will be restored.  The archive is stored in a filed called AF.zip, which you can find in vi.lib.  Please do not delete this file, as you will lose the ability to restore the original files.
 
-5.  Items have been added to a new subpalette to support automated testing of your actors.  These include the original Launch Actor.vi, Init Actor Queues FOR TESTING ONLY.vi, and a new VI, Test Launch for Nested Actor Without Caller.vi, useful for testing actors that run and then shut themselves down.
-
-6.  Enqueuer and Last Ack controls and constants have been added to the Functions and Controls palettes.
-
-7.  To improve the PPL build experience, the specialty messages (Batch, Reply, Report Error, and Self-Addressed) have been copied to new locations on disk, and the copies moved into libraries.  The copies of Report Error Msg and Self-Addressed Msg are now part of Actor Framework.lvlib.  The copies of Batch Msg and Reply Msg are members of a new library, AF Specialty Messages.lvlib.  To avoid breaking existing code, the original versions of these messages remain on disk, but are now DEPRECATED, and marked accordingly.  Developers are encouraged to migrate to the new library versions of these messages at their earliest convenience.</Description>
+This version DOES NOT update the Actor Framework project providers.  Updated project providers will be made available in a separate package, with its own update cadence.</Description>
       <Copyright>Copyright (c) 2024, NI</Copyright>
       <Packager>Allen C Smith</Packager>
       <URL/>
-      <Release_Notes>This version is a major reorganization of the Actor Framework core libraries to facilitate PPL builds, with minimal changes to functionality.
+      <Release_Notes>1.  Almost all of the contents of AF Debug.lvlib have been moved into Actor Framework.lvlib.  AF Debug.lvlib now only contains the code that sends traces to Desktop Execution Trace Toolkit and a few compatibility remnants.  DETT trace code is now encapsulated in a class (DETT Format.lvclass) that inherits from an interface (Trace Format.lvlcass) that resides in Actor Framework.lvlib.
 
-1.  Almost all of the contents of AF Debug.lvlib have been moved into Actor Framework.lvlib.  AF Debug.lvlib now only contains the code that sends traces to Desktop Execution Trace Toolkit and a few compatibility remnants.  DETT trace code is now encapsulated in a class (DETT Format.lvclass) that inherits from an interface (Trace Format.lvlcass) that resides in Actor Framework.lvlib.
-
-2.  Generate Trace.vi now dynamically loads a trace format.  If no trace format is specified, Generate Trace.vi will load DETT Format.lvclass as the default.  If developers add the token AFDebugTraceFormat to their LabVIEW INI file, Generate Trace.vi will load that format instead.  AFDebugTraceFormat is a path saved as a string.
+2.  Generate Trace.vi now dynamically loads a trace format.  If no trace format is specified, Generate Trace.vi will load DETT Format.lvclass as the default.  If users add the token AFDebugTraceFormat to their LabVIEW INI file, Generate Trace.vi will load that format instead.  AFDebugTraceFormat is a path saved as a string.
 
 3.  Actor registration has been streamlined; Actor.vi no longer has to send Register Actor Msg.lvclass to the new actor to complete registration.  Registration is performed directly in Actor Core.vi, just before message handling starts.
 
@@ -447,6 +441,20 @@
         <VI_Title/>
       </Items_Data>
       <Items_Data>
+        <Type>Item</Type>
+        <Sub_Palette_Index>-1</Sub_Palette_Index>
+        <NameSub_Menu_Name>Send Error Report.vi</NameSub_Menu_Name>
+        <Short_Name/>
+        <is_Merge_VI>false</is_Merge_VI>
+        <Position>
+          <Row>4</Row>
+          <Column>1</Column>
+        </Position>
+        <Icon>00000000</Icon>
+        <Path>ActorFramework\Report Error Msg\Send Error Report.vi</Path>
+        <VI_Title/>
+      </Items_Data>
+      <Items_Data>
         <Type>Sub Palette</Type>
         <Sub_Palette_Index>1</Sub_Palette_Index>
         <NameSub_Menu_Name>Advanced</NameSub_Menu_Name>
@@ -488,21 +496,7 @@
         <Path>ActorFramework\Palette Items\Last Ack Constant.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <Items_Data>
-        <Type>Item</Type>
-        <Sub_Palette_Index>-1</Sub_Palette_Index>
-        <NameSub_Menu_Name>Send Error Report.vi</NameSub_Menu_Name>
-        <Short_Name/>
-        <is_Merge_VI>false</is_Merge_VI>
-        <Position>
-          <Row>4</Row>
-          <Column>1</Column>
-        </Position>
-        <Icon>00000000</Icon>
-        <Path>ActorFramework\Specialty Messages\Report Error Msg\Send Error Report.vi</Path>
-        <VI_Title/>
-      </Items_Data>
-      <GUID>1DC2481CEF63621F04280584880824C7</GUID>
+      <GUID>B952748F8B6D145FCD5054B0BC6DC2E8</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>0</Parent_Palette_Index>
@@ -526,6 +520,20 @@
       <Items_Data>
         <Type>Item</Type>
         <Sub_Palette_Index>-1</Sub_Palette_Index>
+        <NameSub_Menu_Name>Send Batch.vi</NameSub_Menu_Name>
+        <Short_Name/>
+        <is_Merge_VI>false</is_Merge_VI>
+        <Position>
+          <Row>1</Row>
+          <Column>1</Column>
+        </Position>
+        <Icon>00000000</Icon>
+        <Path>ActorFramework\Batch Msg\Send Batch.vi</Path>
+        <VI_Title/>
+      </Items_Data>
+      <Items_Data>
+        <Type>Item</Type>
+        <Sub_Palette_Index>-1</Sub_Palette_Index>
         <NameSub_Menu_Name>Time-Delayed Send Message.vi</NameSub_Menu_Name>
         <Short_Name/>
         <is_Merge_VI>false</is_Merge_VI>
@@ -535,6 +543,48 @@
         </Position>
         <Icon>00000000</Icon>
         <Path>ActorFramework\Time-Delayed Send Message\Time-Delayed Send Message.vi</Path>
+        <VI_Title/>
+      </Items_Data>
+      <Items_Data>
+        <Type>Item</Type>
+        <Sub_Palette_Index>-1</Sub_Palette_Index>
+        <NameSub_Menu_Name>Address Message.vi</NameSub_Menu_Name>
+        <Short_Name/>
+        <is_Merge_VI>false</is_Merge_VI>
+        <Position>
+          <Row>1</Row>
+          <Column>3</Column>
+        </Position>
+        <Icon>00000000</Icon>
+        <Path>ActorFramework\Self-Addressed Msg\Address Message.vi</Path>
+        <VI_Title/>
+      </Items_Data>
+      <Items_Data>
+        <Type>Item</Type>
+        <Sub_Palette_Index>-1</Sub_Palette_Index>
+        <NameSub_Menu_Name>Send Self-Addressed Message.vi</NameSub_Menu_Name>
+        <Short_Name/>
+        <is_Merge_VI>false</is_Merge_VI>
+        <Position>
+          <Row>1</Row>
+          <Column>4</Column>
+        </Position>
+        <Icon>00000000</Icon>
+        <Path>ActorFramework\Self-Addressed Msg\Send Self-Addressed Message.vi</Path>
+        <VI_Title/>
+      </Items_Data>
+      <Items_Data>
+        <Type>Item</Type>
+        <Sub_Palette_Index>-1</Sub_Palette_Index>
+        <NameSub_Menu_Name>Send Message And Wait For Response.vi</NameSub_Menu_Name>
+        <Short_Name/>
+        <is_Merge_VI>false</is_Merge_VI>
+        <Position>
+          <Row>2</Row>
+          <Column>1</Column>
+        </Position>
+        <Icon>00000000</Icon>
+        <Path>ActorFramework\Reply Msg\Send Message And Wait For Response.vi</Path>
         <VI_Title/>
       </Items_Data>
       <Items_Data>
@@ -593,63 +643,7 @@
         <Path>ActorFramework\tracing\Generate Custom Trace.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <Items_Data>
-        <Type>Item</Type>
-        <Sub_Palette_Index>-1</Sub_Palette_Index>
-        <NameSub_Menu_Name>Send Batch.vi</NameSub_Menu_Name>
-        <Short_Name/>
-        <is_Merge_VI>false</is_Merge_VI>
-        <Position>
-          <Row>1</Row>
-          <Column>1</Column>
-        </Position>
-        <Icon>00000000</Icon>
-        <Path>ActorFramework\Specialty Messages\Batch Msg\Send Batch.vi</Path>
-        <VI_Title/>
-      </Items_Data>
-      <Items_Data>
-        <Type>Item</Type>
-        <Sub_Palette_Index>-1</Sub_Palette_Index>
-        <NameSub_Menu_Name>Address Message.vi</NameSub_Menu_Name>
-        <Short_Name/>
-        <is_Merge_VI>false</is_Merge_VI>
-        <Position>
-          <Row>1</Row>
-          <Column>3</Column>
-        </Position>
-        <Icon>00000000</Icon>
-        <Path>ActorFramework\Specialty Messages\Self-Addressed Msg\Address Message.vi</Path>
-        <VI_Title/>
-      </Items_Data>
-      <Items_Data>
-        <Type>Item</Type>
-        <Sub_Palette_Index>-1</Sub_Palette_Index>
-        <NameSub_Menu_Name>Send Self-Addressed Message.vi</NameSub_Menu_Name>
-        <Short_Name/>
-        <is_Merge_VI>false</is_Merge_VI>
-        <Position>
-          <Row>1</Row>
-          <Column>4</Column>
-        </Position>
-        <Icon>00000000</Icon>
-        <Path>ActorFramework\Specialty Messages\Self-Addressed Msg\Send Self-Addressed Message.vi</Path>
-        <VI_Title/>
-      </Items_Data>
-      <Items_Data>
-        <Type>Item</Type>
-        <Sub_Palette_Index>-1</Sub_Palette_Index>
-        <NameSub_Menu_Name>Send Message And Wait For Response.vi</NameSub_Menu_Name>
-        <Short_Name/>
-        <is_Merge_VI>false</is_Merge_VI>
-        <Position>
-          <Row>2</Row>
-          <Column>1</Column>
-        </Position>
-        <Icon>00000000</Icon>
-        <Path>ActorFramework\Specialty Messages\Reply Msg\Send Message And Wait For Response.vi</Path>
-        <VI_Title/>
-      </Items_Data>
-      <GUID>96B5ADB7DDD25D6FF313ED255A898224</GUID>
+      <GUID>649C181F54DF45B8F47F82C6E41830F9</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>1</Parent_Palette_Index>
@@ -782,7 +776,7 @@
         <Path>ActorFramework\Message Queue\Release Message Queue.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>45AE4AB958B37D216CBC693901DDDC51</GUID>
+      <GUID>3C852F4DCCABC69061DD922BAE0D8AF4</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>1</Parent_Palette_Index>
@@ -845,7 +839,7 @@
         <Path>ActorFramework\Actor\Init Actor Queues FOR TESTING ONLY.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>B4F3736C2A8F2F704D64C386015D4AB1</GUID>
+      <GUID>B0A5FB86FA39582965A7329F8CAD4F03</GUID>
     </Functions_Palette_Data>
     <Controls_Palette_Data>
       <Parent_Palette_Index>-1</Parent_Palette_Index>
@@ -894,7 +888,7 @@
         <Path>ActorFramework\Palette Items\Last Ack Control.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>0AEB7A1389A05003DAF209EB28828745</GUID>
+      <GUID>1CDA750B54E0DEF9EBD49B4FD0E61CB4</GUID>
     </Controls_Palette_Data>
   </Library_Palette_Definition>
 </VI_Package_Builder_Settings>
