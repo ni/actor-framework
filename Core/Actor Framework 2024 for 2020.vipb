@@ -1,7 +1,7 @@
-<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-10-02 14:51:46" Creator="allen" Comments="" ID="8784878b39604d7a24f2a01004480c3a">
+<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-10-08 09:34:45" Creator="allen" Comments="" ID="f33562237a3a988351cdc4ef57f9a88f">
   <Library_General_Settings>
     <Package_File_Name>Actor_Framework_2024_for_2020</Package_File_Name>
-    <Library_Version>2.0.0.13</Library_Version>
+    <Library_Version>2.0.0.18</Library_Version>
     <Auto_Increment_Version>false</Auto_Increment_Version>
     <Library_Source_Folder>.</Library_Source_Folder>
     <Library_Output_Folder>..\Builds</Library_Output_Folder>
@@ -28,13 +28,21 @@
     <VI_Package_Configuration_File>Actor Framework 2024 for 2020.vipc</VI_Package_Configuration_File>
     <Description>
       <One_Line_Description_Summary>Actor Framework reorganized for improved PPL builds.</One_Line_Description_Summary>
-      <Description/>
+      <Description>This product updates the core Actor Framework libraries that ship with LabVIEW - Actor Framework.lvlib and AF Debug.lvlib.
+
+The versions of these libraries that ship with LabVIEW 2024 Q3 have been backported for use with LabVIEW 2020 or later.  If you are working in one of these earlier versions, you can now take advantage of Uninit.vi, a new dynamic dispatch member of Actor.lvclass,  plus a small number of minor bug fixes.
+
+In addition, this version contains a major reorganization of the Actor Framework core libraries to facilitate PPL builds, with minimal changes to functionality.  Developers should be able to seamlessly update to this version of the framework, and then leverage its features and changes at their convenience.
+
+Finally, we have added a protected method to Actor.lvclass that sends a Normal Stop to its nested autostop actors, and we have added a few productivity and test support items to the palettes.  Please see the Release Notes for details.
+
+As a pre-install action, this package will archive your existing core libraries and palettes.  Should you wish to uninstall this package, your original libraries will be restored.  The archive is stored in a filed called AF.zip, which you can find in vi.lib.  Please do not delete this file, as you will lose the ability to restore the original files.
+
+This version DOES NOT update the Actor Framework project providers.  Updated project providers will be made available in a separate package, with its own update cadence.</Description>
       <Copyright>Copyright (c) 2024, NI</Copyright>
       <Packager>Allen C Smith</Packager>
       <URL/>
-      <Release_Notes>This version is a major reorganization of the Actor Framework core libraries to facilitate PPL builds, with minimal changes to functionality.
-
-1.  Almost all of the contents of AF Debug.lvlib have been moved into Actor Framework.lvlib.  AF Debug.lvlib now only contains the code that sends traces to Desktop Execution Trace Toolkit and a few compatibility remnants.  DETT trace code is now encapsulated in a class (DETT Format.lvclass) that inherits from an interface (Trace Format.lvlcass) that resides in Actor Framework.lvlib.
+      <Release_Notes>1.  Almost all of the contents of AF Debug.lvlib have been moved into Actor Framework.lvlib.  AF Debug.lvlib now only contains the code that sends traces to Desktop Execution Trace Toolkit and a few compatibility remnants.  DETT trace code is now encapsulated in a class (DETT Format.lvclass) that inherits from an interface (Trace Format.lvlcass) that resides in Actor Framework.lvlib.
 
 2.  Generate Trace.vi now dynamically loads a trace format.  If no trace format is specified, Generate Trace.vi will load DETT Format.lvclass as the default.  If users add the token AFDebugTraceFormat to their LabVIEW INI file, Generate Trace.vi will load that format instead.  AFDebugTraceFormat is a path saved as a string.
 
@@ -44,7 +52,9 @@
 
 5.  Items have been added to a new subpalette to support automated testing of your actors.  These include the original Launch Actor.vi, Init Actor Queues FOR TESTING ONLY.vi, and a new VI, Test Launch for Nested Actor Without Caller.vi, useful for testing actors that run and then shut themselves down.
 
-6.  Enqueuer and Last Ack controls and constants have been added to the Functions and Controls palettes.</Release_Notes>
+6.  Enqueuer and Last Ack controls and constants have been added to the Functions and Controls palettes.
+
+7.  To improve the PPL build experience, the specialty messages (Batch, Reply, Report Error, and Self-Addressed) have been copied to new locations on disk, and the copies moved into libraries.  The copies of Report Error Msg and Self-Addressed Msg are now part of Actor Framework.lvlib.  The copies of Batch Msg and Reply Msg are members of a new library, AF Specialty Messages.lvlib.  To avoid breaking existing code, the original versions of these messages remain on disk, but are now DEPRECATED, and marked accordingly.  Developers are encouraged to migrate to the new library versions of these messages at their earliest convenience.</Release_Notes>
     </Description>
     <Destinations>
       <Toolkit_VIs>
@@ -486,7 +496,7 @@
         <Path>ActorFramework\Palette Items\Last Ack Constant.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>E62D4F495CFD397130B63F203405A2A1</GUID>
+      <GUID>B952748F8B6D145FCD5054B0BC6DC2E8</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>0</Parent_Palette_Index>
@@ -633,7 +643,7 @@
         <Path>ActorFramework\tracing\Generate Custom Trace.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>65AB724EBD0BB9B52CFC95B48E2FEC08</GUID>
+      <GUID>649C181F54DF45B8F47F82C6E41830F9</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>1</Parent_Palette_Index>
@@ -766,7 +776,7 @@
         <Path>ActorFramework\Message Queue\Release Message Queue.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>986047436CDC7E6739938329348327D8</GUID>
+      <GUID>3C852F4DCCABC69061DD922BAE0D8AF4</GUID>
     </Functions_Palette_Data>
     <Functions_Palette_Data>
       <Parent_Palette_Index>1</Parent_Palette_Index>
@@ -829,7 +839,7 @@
         <Path>ActorFramework\Actor\Init Actor Queues FOR TESTING ONLY.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>2C4894DD279D3554D1B197F0AB8E6C8F</GUID>
+      <GUID>B0A5FB86FA39582965A7329F8CAD4F03</GUID>
     </Functions_Palette_Data>
     <Controls_Palette_Data>
       <Parent_Palette_Index>-1</Parent_Palette_Index>
@@ -878,7 +888,7 @@
         <Path>ActorFramework\Palette Items\Last Ack Control.vi</Path>
         <VI_Title/>
       </Items_Data>
-      <GUID>BAE8AB85DBC60CCB2C8A46BCE14BE076</GUID>
+      <GUID>1CDA750B54E0DEF9EBD49B4FD0E61CB4</GUID>
     </Controls_Palette_Data>
   </Library_Palette_Definition>
 </VI_Package_Builder_Settings>
