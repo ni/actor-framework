@@ -1,4 +1,4 @@
-<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-10-02 15:14:42" Creator="allen" Comments="" ID="b51ef3651739b191aa8c48a4532f4812">
+<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-08-22 09:23:48" Modified_Date="2024-10-13 14:15:00" Creator="allen" Comments="" ID="f30e20b0b8bf711bc35695a11dd306d4">
   <Library_General_Settings>
     <Package_File_Name>Actor_Framework_2024_for_2020</Package_File_Name>
     <Library_Version>1.0.0.9</Library_Version>
@@ -32,7 +32,8 @@
       <Copyright>Copyright (c) 2024, NI</Copyright>
       <Packager>Allen C Smith</Packager>
       <URL/>
-      <Release_Notes>Added pre- and post- install actions to stash and restore the system's original Actor Framwork files.</Release_Notes>
+      <Release_Notes>1.0.0.8 - Added pre- and post- install actions to stash and restore the system's original Actor Framwork files.
+1.0.1.9 - Restored "Casting Utility For Actors.vim"</Release_Notes>
     </Description>
     <Destinations>
       <Toolkit_VIs>
