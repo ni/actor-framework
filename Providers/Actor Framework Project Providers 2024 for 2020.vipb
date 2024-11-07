@@ -1,7 +1,7 @@
-<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-10-24 12:51:32" Modified_Date="2024-10-24 13:37:45" Creator="allen" Comments="" ID="88ea9e1266aa4b408f44e2a863f6e7e6">
+<VI_Package_Builder_Settings Version="2020.1" Created_Date="2024-10-24 12:51:32" Modified_Date="2024-10-30 14:25:59" Creator="allen" Comments="" ID="fb9a24ec62f7ab155c4a7aea4d4159ef">
   <Library_General_Settings>
     <Package_File_Name>Actor_Framework_Project_Providers_2024_for_2020</Package_File_Name>
-    <Library_Version>1.0.0.3</Library_Version>
+    <Library_Version>1.0.0.4</Library_Version>
     <Auto_Increment_Version>false</Auto_Increment_Version>
     <Library_Source_Folder>.</Library_Source_Folder>
     <Library_Output_Folder>..\Builds</Library_Output_Folder>
