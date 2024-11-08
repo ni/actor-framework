@@ -11,6 +11,7 @@
 	<Item Name="Get All PPLs Under Target.vi" Type="VI" URL="../Get All PPLs Under Target.vi"/>
 	<Item Name="Get Linked Files.vi" Type="VI" URL="../Get Linked Files.vi"/>
 	<Item Name="Get Project Item from ID.vi" Type="VI" URL="../Get Project Item from ID.vi"/>
+	<Item Name="Inline SubVI.vi" Type="VI" URL="../Inline SubVI.vi"/>
 	<Item Name="Resolve Symbolic Paths.vi" Type="VI" URL="../Resolve Symbolic Paths.vi"/>
 	<Item Name="Update Target Tag - PPL Path.vi" Type="VI" URL="../Update Target Tag - PPL Path.vi"/>
 	<Item Name="Validation Mode.ctl" Type="VI" URL="../Validation Mode.ctl"/>
