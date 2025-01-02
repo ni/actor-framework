@@ -1,0 +1,31 @@
+@startuml
+
+package "Message Maker.lvlib" {
+	[Builders] --> [Message Construction]
+	[Prototypers] --> [Message Construction]
+	[Scripters] --> [Message Construction]
+	}
+
+package "Message Maker Provider.lvlib"
+package "Actor Message Maker Provider.lvlib"
+package "Message Rescripter.lvlib"
+package "Add Actor.lvlib"
+package "Add Actor Interface.lvlib"
+
+"Message Maker Provider.lvlib" --> "Message Maker.lvlib"
+"Actor Message Maker Provider.lvlib" --> "Message Maker Provider.lvlib"
+"Message Rescripter.lvlib" --> "Message Maker.lvlib"
+"Add Actor.lvlib" <-> "Add Actor Interface.lvlib"
+"Add Actor.lvlib" --> "Message Maker.lvlib"
+"Add Actor Interface.lvlib" --> "Message Maker.lvlib"
+
+note as N
+	All packages depend
+	on this package
+end note
+
+package "AFPP Shared.lvlib"
+
+"AFPP Shared.lvlib" .. N
+
+@enduml
