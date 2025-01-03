@@ -16,8 +16,6 @@ package "Add Actor Interface.lvlib"
 "Actor Message Maker Provider.lvlib" --> "Message Maker Provider.lvlib"
 "Message Rescripter.lvlib" --> "Message Maker.lvlib"
 "Add Actor.lvlib" <-> "Add Actor Interface.lvlib"
-"Add Actor.lvlib" --> "Message Maker.lvlib"
-"Add Actor Interface.lvlib" --> "Message Maker.lvlib"
 
 note as N
 	All packages depend
