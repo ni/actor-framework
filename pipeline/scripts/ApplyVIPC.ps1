@@ -97,13 +97,11 @@ Write-Verbose "VIP_LVVersion_B (for minimum LVVersion): $VIP_LVVersion_B"
 Write-Verbose "Constructing the g-cli command script..."
 $script = @"
 g-cli --lv-ver $MinimumSupportedLVVersion --arch $SupportedBitness -v "$($ResolvedRelativePath)\Tooling\Deployment\Applyvipc.vi" -- "$ResolvedVIPCPath" "$VIP_LVVersion_B"
-g-cli --lv-ver $MinimumSupportedLVVersion --arch $SupportedBitness -v "$($ResolvedRelativePath)\Tooling\Deployment\Applyvipc.vi" -- "$ResolvedVIPCPath" "$VIP_LVVersion_B"
 "@
 
 if ($VIP_LVVersion -ne $MinimumSupportedLVVersion) {
     Write-Verbose "VIP_LVVersion and MinimumSupportedLVVersion differ; adding commands for $VIP_LVVersion..."
     $script += @"
-g-cli --lv-ver $VIP_LVVersion --arch $SupportedBitness -v "$($ResolvedRelativePath)\Tooling\Deployment\Applyvipc.vi" -- "$ResolvedVIPCPath" "$VIP_LVVersion_A"
 g-cli --lv-ver $VIP_LVVersion --arch $SupportedBitness -v "$($ResolvedRelativePath)\Tooling\Deployment\Applyvipc.vi" -- "$ResolvedVIPCPath" "$VIP_LVVersion_A"
 "@
 }

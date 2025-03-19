@@ -14,7 +14,7 @@
     .\Build.ps1 `
       -BasePath "C:\Users\svelderr\Documents\git\actor-framework" `
       -BasePathScripts "C:\Users\svelderr\Documents\git\actor-framework\pipeline\scripts" `
-      -Major 1 -Minor 0 -Patch 0 -Build 0 -Commit "Placeholder" `
+      -Major 1 -Minor 1 -Patch 0 -Build 1 -Commit "Placeholder" `
       -CompanyName "Acme Corporation" `
       -AuthorName "John Doe (Acme Corp)" `
       -Verbose
@@ -101,8 +101,8 @@ function Execute-Script {
 try {
     Write-Verbose "Script: Build.ps1 starting."
     Write-Verbose "Parameters received:"
-    Write-Verbose " - RelativePath: $BasePath"
-    Write-Verbose " - AbsolutePathScripts: $BasePathScripts"
+    Write-Verbose " - BasePath: $BasePath"
+    Write-Verbose " - BasePathScripts: $BasePathScripts"
     Write-Verbose " - Major: $Major"
     Write-Verbose " - Minor: $Minor"
     Write-Verbose " - Patch: $Patch"
@@ -136,13 +136,13 @@ try {
     }
 
     # 6) Apply VIPC (64-bit)
-    Write-Verbose "Now applying VIPC for 64-bit..."
-    Execute-Script "$($BasePathScripts)\ApplyVIPC.ps1" `
-        ("-MinimumSupportedLVVersion 2020 " +
-         "-VIP_LVVersion 2020 " +
-         "-SupportedBitness 64 " +
-         "-RelativePath `"$BasePath`" " +
-         "-VIPCPath `"Tooling\deployment\Dependencies.vipc`"")
+#    Write-Verbose "Now applying VIPC for 64-bit..."
+#    Execute-Script "$($BasePathScripts)\ApplyVIPC.ps1" `
+#        ("-MinimumSupportedLVVersion 2020 " +
+#         "-VIP_LVVersion 2020 " +
+#         "-SupportedBitness 64 " +
+#         "-RelativePath `"$BasePath`" " +
+#         "-VIPCPath `"Tooling\deployment\Dependencies.vipc`"")
 
     # -------------------------------------------------------------------------
     # 8) Construct the JSON for "Company Name" & "Author Name", plus version
@@ -175,7 +175,7 @@ try {
         (
             # Use single-dash for all recognized parameters
             "-SupportedBitness 64 " +
-            "-BasePath `"$BasePath`" " +
+            "-RelativePath `"$BasePath`" " +
             "-VIPBPath `"Core\Actor Framework.vipb`" " +
             "-MinimumSupportedLVVersion 2020 " +
             "-LabVIEWMinorRevision $LabVIEWMinorRevision " +
