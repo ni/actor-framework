@@ -27,7 +27,7 @@ env:
 
 jobs:
   build-release:
-    runs-on: [self-hosted, iconeditor]
+    runs-on: [self-hosted, actorframework]
     permissions:
       contents: write
       issues: read
