@@ -320,7 +320,7 @@ jobs:
               return;
             }
 
-            const vipDir = path.join(process.env.GITHUB_WORKSPACE, 'builds', 'VI Package');
+            const vipDir = path.join(process.env.GITHUB_WORKSPACE, 'builds');
             let vipFiles = [];
             try {
               vipFiles = fs.readdirSync(vipDir).filter(f => f.toLowerCase().endsWith('.vip'));
