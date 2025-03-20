@@ -217,8 +217,8 @@ jobs:
     
           # Call the updated Build.ps1 which now expects -CompanyName and -AuthorName
           .\pipeline\scripts\Build.ps1 `
-            -RelativePath        $repoRoot `
-            -AbsolutePathScripts $scriptsFolder `
+            -BasePath            $repoRoot `
+            -BasePathScripts     $scriptsFolder `
             -Major               $env:MAJOR `
             -Minor               $env:MINOR `
             -Patch               $env:PATCH `
