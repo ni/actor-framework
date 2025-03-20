@@ -234,9 +234,9 @@ jobs:
         id: find_vip
         shell: pwsh
         run: |
-          $vipFile = Get-ChildItem -Path "builds/VI Package" -Filter "*.vip" -ErrorAction Stop | Select-Object -First 1
+          $vipFile = Get-ChildItem -Path "builds" -Filter "*.vip" -ErrorAction Stop | Select-Object -First 1
           if (-not $vipFile) {
-            Write-Host "No .vip file found in builds/VI Package!"
+            Write-Host "No .vip file found in builds!"
             exit 1
           }
           Write-Host "Discovered VIP File: $($vipFile.FullName)"
