@@ -1,0 +1,131 @@
+name: "Manual Test Report"
+description: "Select a test case and report the result after execution."
+title: "[Manual Test] "
+labels: ["manual-test"]
+assignees: []
+
+body:
+  - type: dropdown
+    id: test_id
+    attributes:
+      label: "🧪 Select a Test"
+      description: "Choose the test alias you executed."
+      options:
+        - 1713129_Actor_Creation
+        - 1713131_Creating_a_Standard_Message
+        - 1713132_Creating_Abstract_and_Concrete_Messages
+        - 1713133_Creating_Multiple_Messages_for_Actors
+        - 1713134_Verify_that_Project_Provider_Features_are_not_Available_when_an_Actor-s_Library_is_Loaded_Directly
+        - 1713135_REQUIRES_RT-_Testing_on_RT_Targets
+        - 1713136_PPL_Support
+        - 1713431_Create_new_instance_of_-Feedback_Evaporative_Cooler-_project
+        - 1713432_Create_new_instance_of_-Actor_Framework-_project
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        👇 Metadata for the selected test will appear below:
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713129: Actor Creation  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713129.md)
+    if: "test_id == '1713129_Actor_Creation'"
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713131: Creating a Standard Message  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713131.md)
+    if: "test_id == '1713131_Creating_a_Standard_Message'"
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713132: Creating Abstract and Concrete Messages  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713132.md)
+    if: "test_id == '1713132_Creating_Abstract_and_Concrete_Messages'"
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713133: Creating Multiple Messages for Actors  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713133.md)
+    if: "test_id == '1713133_Creating_Multiple_Messages_for_Actors'"
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713134: Verify that Project Provider Features are not Available when an Actor's Library is Loaded Directly  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713134.md)
+    if: "test_id == '1713134_Verify_that_Project_Provider_Features_are_not_Available_when_an_Actor-s_Library_is_Loaded_Directly'"
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713135: REQUIRES RT - Testing on RT Targets  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713135.md)
+    if: "test_id == '1713135_REQUIRES_RT-_Testing_on_RT_Targets'"
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713136: PPL Support  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713136.md)
+    if: "test_id == '1713136_PPL_Support'"
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713431: Create new instance of 'Feedback Evaporative Cooler' project  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713431.md)
+    if: "test_id == '1713431_Create_new_instance_of_-Feedback_Evaporative_Cooler-_project'"
+
+  - type: markdown
+    attributes:
+      value: |
+        ### 1713432: Create new instance of 'Actor Framework' project  
+        ⏱ **Estimated Time:** *<Fill In>*  
+        🖥 **OS Compatibility:** *<Fill In>*  
+        📄 [View Steps](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713432.md)
+    if: "test_id == '1713432_Create_new_instance_of_-Actor_Framework-_project'"
+
+  - type: dropdown
+    id: test_result
+    attributes:
+      label: "✅ Test Result"
+      description: "What was the result after running the test?"
+      options:
+        - Passed
+        - Failed
+        - Needs Review
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: "📝 Notes or Screenshots (optional)"
+      description: "Add details, bugs, or screenshots here if needed."
+      placeholder: "E.g. Unexpected dialog appeared on step 3..."
+    validations:
+      required: false
