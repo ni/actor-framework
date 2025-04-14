@@ -19,7 +19,9 @@ jobs:
         id: parse
         uses: issue-ops/parser@v1.0.0
         with:
+          issue-form-template: '.github/ISSUE_TEMPLATE/manual-test-report.yml'
           body: ${{ github.event.issue.body }}
+
 
       # ------------------------
       # Example Output Step
