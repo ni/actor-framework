@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Manual Test Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <h1>Manual Test Reports</h1>
+    <canvas id="testResultsChart"></canvas>
+    <script>
+      fetch('test_reports.json')
+        .then(res => res.json())
+        .then(data => {
+          const passCount = data.filter(d => d.test_result === 'Passed').length;
+          const failCount = data.filter(d => d.test_result === 'Failed').length;
+          const needReviewCount = data.filter(d => d.test_result === 'Needs Review').length;
+
+          new Chart(document.getElementById('testResultsChart'), {
+            type: 'pie',
+            data: {
+              labels: ['Passed', 'Failed', 'Needs Review'],
+              datasets: [{
+                data: [passCount, failCount, needReviewCount],
+                backgroundColor: ['#4CAF50', '#F44336', '#FF9800']
+              }]
+            },
+            options: {
+              plugins: {
+                title: { display: true, text: 'Overall Test Results' }
+              }
+            }
+          });
+        });
+    </script>
+  </body>
+</html>
