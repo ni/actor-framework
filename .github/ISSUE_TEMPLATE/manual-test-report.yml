@@ -11,15 +11,15 @@ body:
       label: "🧪 Select a Test"
       description: "Choose the test alias you executed. Review test instructions using the link in the table below."
       options:
-        - 1713129_Actor_Creation
-        - 1713131_Creating_a_Standard_Message
-        - 1713132_Creating_Abstract_and_Concrete_Messages
-        - 1713133_Creating_Multiple_Messages_for_Actors
-        - 1713134_Verify_that_Project_Provider_Features_are_not_Available_when_an_Actor-s_Library_is_Loaded_Directly
-        - 1713135_REQUIRES_RT-_Testing_on_RT_Targets
-        - 1713136_PPL_Support
-        - 1713431_Create_new_instance_of_-Feedback_Evaporative_Cooler-_project
-        - 1713432_Create_new_instance_of_-Actor_Framework-_project
+        - Actor_Creation
+        - Creating_a_Standard_Message
+        - Creating_Abstract_and_Concrete_Messages
+        - Creating_Multiple_Messages_for_Actors
+        - Verify_that_Project_Provider_Features_are_not_Available_when_an_Actor-s_Library_is_Loaded_Directly
+        - REQUIRES_RT-_Testing_on_RT_Targets
+        - PPL_Support
+        - Create_new_instance_of_-Feedback_Evaporative_Cooler-_project
+        - Create_new_instance_of_-Actor_Framework-_project
     validations:
       required: true
 
