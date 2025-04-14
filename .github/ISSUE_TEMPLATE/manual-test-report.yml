@@ -20,15 +20,15 @@ body:
       label: "🧪 Select a Test"
       description: "Choose the test alias you executed. Review test instructions using the link in the table below."
       options:
-        - Actor_Creation
-        - Creating_a_Standard_Message
-        - Creating_Abstract_and_Concrete_Messages
-        - Creating_Multiple_Messages_for_Actors
-        - Verify_that_Project_Provider_Features_are_not_Available_when_an_Actor-s_Library_is_Loaded_Directly
-        - REQUIRES_RT-_Testing_on_RT_Targets
-        - PPL_Support
-        - Create_new_instance_of_-Feedback_Evaporative_Cooler-_project
-        - Create_new_instance_of_-Actor_Framework-_project
+        - "Actor_Creation"
+        - "Creating_a_Standard_Message"
+        - "Creating_Abstract_and_Concrete_Messages"
+        - "Creating_Multiple_Messages_for_Actors"
+        - "Verify_that_Project_Provider_Features_are_not_Available_when_an_Actor-s_Library_is_Loaded_Directly"
+        - "REQUIRES_RT-_Testing_on_RT_Targets"
+        - "PPL_Support"
+        - "Create_new_instance_of_-Feedback_Evaporative_Cooler-_project"
+        - "Create_new_instance_of_-Actor_Framework-_project"
     validations:
       required: true
 
@@ -38,14 +38,14 @@ body:
       label: "🧰 LabVIEW Version Used"
       description: "Select the version of LabVIEW you used to run this test."
       options:
-        - LabVIEW 2025 Q1
-        - LabVIEW 2024 Q3
-        - LabVIEW 2024 Q1
-        - LabVIEW 2023 Q3
-        - LabVIEW 2023 Q1
-        - LabVIEW 2022 Q3
-        - LabVIEW 2021
-        - LabVIEW 2020
+        - "LabVIEW 2025 Q1"
+        - "LabVIEW 2024 Q3"
+        - "LabVIEW 2024 Q1"
+        - "LabVIEW 2023 Q3"
+        - "LabVIEW 2023 Q1"
+        - "LabVIEW 2022 Q3"
+        - "LabVIEW 2021"
+        - "LabVIEW 2020"
     validations:
       required: true
 
@@ -55,8 +55,8 @@ body:
       label: "💻 LabVIEW Bitness"
       description: "Choose whether you ran the test in 32-bit or 64-bit LabVIEW."
       options:
-        - 32-bit
-        - 64-bit
+        - "32-bit"
+        - "64-bit"
     validations:
       required: true
 
@@ -66,9 +66,9 @@ body:
       label: "🖥️ Operating System"
       description: "Choose which operating system you used for this test run."
       options:
-        - Windows
-        - Linux
-        - Real Time (RT)
+        - "Windows"
+        - "Linux"
+        - "Real Time (RT)"
     validations:
       required: true
 
@@ -95,9 +95,9 @@ body:
       label: "✅ Test Result"
       description: "What was the result after running the test?"
       options:
-        - Passed
-        - Failed
-        - Needs Review
+        - "Passed"
+        - "Failed"
+        - "Needs Review"
     validations:
       required: true
 
