@@ -30,9 +30,7 @@ jobs:
           echo "Test Result: ${{ steps.parse.outputs.json.test_result }}"
           echo "Notes: ${{ steps.parse.outputs.json.notes }}"
 
-      # ------------------------
       # Archive the Test Report to a JSON File
-      # ------------------------
       - name: Update JSON Archive
         uses: actions/github-script@v6
         env:
@@ -82,9 +80,7 @@ jobs:
               sha: sha || undefined,
             });
 
-      # ------------------------
       # Auto-Assign the Issue Creator
-      # ------------------------
       - name: Auto-Assign Issue Creator
         uses: kentaro-m/auto-assign-action@v1
         with:
