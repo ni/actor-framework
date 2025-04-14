@@ -31,7 +31,7 @@ jobs:
           echo "Notes: ${{ steps.parse.outputs.json.notes }}"
 
       # ------------------------
-      # Example Step: Archive Test Report Data
+      # Archive the Test Report to a JSON File
       # ------------------------
       - name: Update JSON Archive
         uses: actions/github-script@v6
@@ -49,14 +49,14 @@ jobs:
               sha = response.data.sha;
               existingData = JSON.parse(Buffer.from(response.data.content, 'base64').toString());
             } catch (error) {
-              // If the file doesn't exist, we create it.
               if (error.status !== 404) {
                 throw error;
               }
+              // File does not exist; proceed with empty data.
             }
             const form = JSON.parse(process.env.FORM_DATA);
             const issueNumber = context.payload.issue.number;
-            // Remove any existing record for the issue.
+            // Remove any existing record for this issue
             existingData = existingData.filter(record => record.issue_number !== issueNumber);
             const newRecord = {
               issue_number: issueNumber,
@@ -70,7 +70,6 @@ jobs:
               created_at: context.payload.issue.created_at,
             };
             existingData.push(newRecord);
-            // Optionally sort the records.
             existingData.sort((a, b) => a.issue_number - b.issue_number);
             const newContent = JSON.stringify(existingData, null, 2);
             const encoded = Buffer.from(newContent).toString('base64');
@@ -84,7 +83,7 @@ jobs:
             });
 
       # ------------------------
-      # Auto-Assign the Issue Creator (Production Ready)
+      # Auto-Assign the Issue Creator
       # ------------------------
       - name: Auto-Assign Issue Creator
         uses: kentaro-m/auto-assign-action@v1
