@@ -19,3 +19,8 @@ issue_templates:
     path: feature_request.yaml
     description: "Suggest a new feature or enhancement."
     labels: ["enhancement"]
+  
+  - name: 🚀 Manual Test Report
+    path: manual_test_report.yaml
+    description: "Self-report a manual test execution."
+    labels: ["task"]
