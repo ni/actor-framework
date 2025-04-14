@@ -1,10 +1,19 @@
 name: "Manual Test Report"
 description: "Select a test case and report the result after execution."
-title: "[Manual Test] "
+title: "[Manual Test] {{ test_id }} by {{ user_name }}"
 labels: ["manual-test"]
 assignees: []
 
 body:
+  - type: input
+    id: user_name
+    attributes:
+      label: "👤 Your Name"
+      description: "Enter your GitHub username or handle."
+      placeholder: "e.g. @alice123"
+    validations:
+      required: true
+
   - type: dropdown
     id: test_id
     attributes:
@@ -59,6 +68,7 @@ body:
       options:
         - Windows
         - Linux
+        - Real Time (RT)
     validations:
       required: true
 
@@ -67,17 +77,17 @@ body:
       value: |
         ## 📋 Test Metadata Reference
 
-        | Title | Est. Time | Link |
-        |-------|-----------|------|
-        | Actor Creation | *20 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713129.md) |
-        | Creating a Standard Message | *20 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713131.md) |
-        | Creating Abstract and Concrete Messages | *45 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713132.md) |
-        | Creating Multiple Messages for Actors | *20 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713133.md) |
-        | Project Provider Features not Available | *5 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713134.md) |
-        | REQUIRES RT - Testing on RT Targets | *30 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713135.md) |
-        | PPL Support | *60 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713136.md) |
-        | Create new 'Feedback Evaporative Cooler' project | *10 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713431.md) |
-        | Create new 'Actor Framework' project | *10 Min* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713432.md) |
+        | Title                                                           | Est. Time | Link                                                                                           |
+        |-----------------------------------------------------------------|-----------|------------------------------------------------------------------------------------------------|
+        | Actor Creation                                                 | *20 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713129.md) |
+        | Creating a Standard Message                                    | *20 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713131.md) |
+        | Creating Abstract and Concrete Messages                        | *45 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713132.md) |
+        | Creating Multiple Messages for Actors                          | *20 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713133.md) |
+        | Project Provider Features not Available                        | *5 Min*   | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713134.md) |
+        | REQUIRES RT - Testing on RT Targets                            | *30 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713135.md) |
+        | PPL Support                                                    | *60 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713136.md) |
+        | Create new 'Feedback Evaporative Cooler' project               | *10 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713431.md) |
+        | Create new 'Actor Framework' project                           | *10 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713432.md) |
 
   - type: dropdown
     id: test_result
@@ -95,7 +105,7 @@ body:
     id: notes
     attributes:
       label: "📝 Notes or Screenshots (optional)"
-      description: "Add details, bugs, or screenshots here if needed."
+      description: "Add details, bugs, or screenshots here if needed. (You can paste images directly into the issue.)"
       placeholder: "E.g. Unexpected dialog appeared on step 3..."
     validations:
       required: false
