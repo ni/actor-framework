@@ -7,26 +7,20 @@ on:
 jobs:
   process-manual-test:
     runs-on: ubuntu-latest
-
-    # Only proceed if the issue is labeled 'manual-test'
     if: contains(toJson(github.event.issue.labels), 'manual-test')
 
     steps:
-      - name: Check out repository
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Parse issue form data
+      - name: Parse Issue Form Data
+        id: parse
         uses: issue-ops/parser@v1.0.0
         with:
-          issue-form-template: .github/ISSUE_TEMPLATE/manual-test-report-parser.yml
           body: ${{ github.event.issue.body }}
+          issue-form-template: manual-test-report.yml
 
-
-      # ------------------------
-      # Example Output Step
-      # ------------------------
-      - name: Show parsed data
-        id: show_parsed
+      - name: Display Parsed Data
         run: |
           echo "User Name: ${{ steps.parse.outputs.json.user_name }}"
           echo "Test ID: ${{ steps.parse.outputs.json.test_id }}"
@@ -36,29 +30,10 @@ jobs:
           echo "Test Result: ${{ steps.parse.outputs.json.test_result }}"
           echo "Notes: ${{ steps.parse.outputs.json.notes }}"
 
-      - name: Add to Project
-        uses: actions/add-to-project@v1.0.2
-        with:
-          # e.g.: "https://github.com/orgs/<ORG_OR_USER>/projects/<PROJECT_NUMBER>"
-          project-url: ${{ secrets.PROJECT_URL }}
-          github-token: ${{ secrets.PROJECT_PAT }}
-          # If the item already exists in the project, it won't be duplicated
-
-      - name: Update Project Fields
-        uses: leonsteinhaeuser/project-beta-automations@v2.1.0
-        with:
-          gh_token: ${{ secrets.PROJECT_PAT }}
-          organization: <ORG_OR_USER>
-          project_id: <PROJECT_NUMBER>
-          resource_node_id: ${{ github.event.issue.node_id }}
-          operation_mode: custom_field
-          custom_field_values: ${{ steps.build_project_fields.outputs.fields }}
-        # Make sure your Project field names match the "name" properties above
-
       # ------------------------
-      # Step 2: Archive to docs/test_reports.json
+      # Example Step: Archive Test Report Data
       # ------------------------
-      - name: Update JSON archive
+      - name: Update JSON Archive
         uses: actions/github-script@v6
         env:
           FORM_DATA: ${{ steps.parse.outputs.json }}
@@ -67,28 +42,22 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const path = "docs/test_reports.json";
-
-            // Try to fetch existing file
             let existingData = [];
             let sha;
             try {
-              const res = await github.rest.repos.getContent({ owner, repo, path });
-              sha = res.data.sha;
-              const decoded = Buffer.from(res.data.content, 'base64').toString();
-              existingData = JSON.parse(decoded);
+              const response = await github.rest.repos.getContent({ owner, repo, path });
+              sha = response.data.sha;
+              existingData = JSON.parse(Buffer.from(response.data.content, 'base64').toString());
             } catch (error) {
+              // If the file doesn't exist, we create it.
               if (error.status !== 404) {
                 throw error;
               }
             }
-
             const form = JSON.parse(process.env.FORM_DATA);
             const issueNumber = context.payload.issue.number;
-
-            // Remove any existing record for this issueNumber
-            existingData = existingData.filter(r => r.issue_number !== issueNumber);
-
-            // Build a fresh record
+            // Remove any existing record for the issue.
+            existingData = existingData.filter(record => record.issue_number !== issueNumber);
             const newRecord = {
               issue_number: issueNumber,
               user_name: form.user_name,
@@ -100,13 +69,11 @@ jobs:
               notes: form.notes || '',
               created_at: context.payload.issue.created_at,
             };
-
             existingData.push(newRecord);
+            // Optionally sort the records.
             existingData.sort((a, b) => a.issue_number - b.issue_number);
-
             const newContent = JSON.stringify(existingData, null, 2);
             const encoded = Buffer.from(newContent).toString('base64');
-
             await github.rest.repos.createOrUpdateFileContents({
               owner,
               repo,
@@ -115,3 +82,12 @@ jobs:
               content: encoded,
               sha: sha || undefined,
             });
+
+      # ------------------------
+      # Auto-Assign the Issue Creator (Production Ready)
+      # ------------------------
+      - name: Auto-Assign Issue Creator
+        uses: kentaro-m/auto-assign-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          assignees: "author"
