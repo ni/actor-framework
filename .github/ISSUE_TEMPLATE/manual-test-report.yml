@@ -71,17 +71,17 @@ body:
       value: |
         ## 📋 Test Metadata Reference
 
-        | Alias | Title | Est. Time | OS Compatibility | LabVIEW Version | LabVIEW Bitness | Link |
-        |-------|-------|-----------|------------------|-----------------|-----------------|------|
-        | 1713129_Actor_Creation | Actor Creation | *<Fill In>* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713129.md) |
-        | 1713131_Creating_a_Standard_Message | Creating a Standard Message | *<Fill In>* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713131.md) |
-        | 1713132_Creating_Abstract_and_Concrete_Messages | Creating Abstract and Concrete Messages | *45 Min* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713132.md) |
-        | 1713133_Creating_Multiple_Messages_for_Actors | Creating Multiple Messages for Actors | *<Fill In>* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713133.md) |
-        | 1713134_Verify_that_Project_Provider_Features_are_not_Available_when_an_Actor-s_Library_is_Loaded_Directly | Project Provider Features not Available | *5 Min* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713134.md) |
-        | 1713135_REQUIRES_RT-_Testing_on_RT_Targets | REQUIRES RT - Testing on RT Targets | *30* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713135.md) |
-        | 1713136_PPL_Support | PPL Support | *60 Min* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713136.md) |
-        | 1713431_Create_new_instance_of_-Feedback_Evaporative_Cooler-_project | Create new 'Feedback Evaporative Cooler' project | *10 Min* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713431.md) |
-        | 1713432_Create_new_instance_of_-Actor_Framework-_project | Create new 'Actor Framework' project | *10 Min* | *<Fill In>* | *<Fill In>* | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713432.md) |
+        | Title | Est. Time | Link |
+        |-------|-----------|------|
+        | Actor Creation | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713129.md) |
+        | Creating a Standard Message | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713131.md) |
+        | Creating Abstract and Concrete Messages | 45 Min | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713132.md) |
+        | Creating Multiple Messages for Actors | *<Fill In>* | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713133.md) |
+        | Project Provider Features not Available | 5 Min | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713134.md) |
+        | REQUIRES RT - Testing on RT Targets | 30 Min | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713135.md) |
+        | PPL Support | 60 Min | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713136.md) |
+        | Create new 'Feedback Evaporative Cooler' project | 10 Min | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713431.md) |
+        | Create new 'Actor Framework' project | 10 Min | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713432.md) |
 
   - type: dropdown
     id: test_result
