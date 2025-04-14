@@ -21,6 +21,6 @@ issue_templates:
     labels: ["enhancement"]
   
   - name: 🚀 Manual Test Report
-    path: manual_test_report.yaml
+    path: manual-test-report.yaml
     description: "Self-report a manual test execution."
     labels: ["task"]
