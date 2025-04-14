@@ -87,7 +87,7 @@ jobs:
       # Auto-Assign the Issue Creator (Production Ready)
       # ------------------------
       - name: Auto-Assign Issue Creator
-        uses: kentaro-m/auto-assign-action@v1
+        uses: kentaro-m/auto-assign@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           assignees: "author"
