@@ -8,9 +8,9 @@ body:
   - type: input
     id: user_name
     attributes:
-      label: "👤 Your Name"
-      description: "Enter your GitHub username or handle."
-      placeholder: "e.g. @alice123"
+      label: "👤 Your GitHub username"
+      description: "Enter your GitHub username."
+      placeholder: "e.g. @svelderrainruiz"
     validations:
       required: true
 
