@@ -2,8 +2,7 @@ name: "Process Manual Test Issues"
 
 on:
   issues:
-    # We do NOT trigger on 'unlabeled' to avoid potential errors if label is removed
-    types: [opened, edited, labeled]
+    types: [opened, edited, labeled]  # no 'unlabeled' trigger
 
 concurrency:
   group: manual-test-${{ github.event.issue.number }}
@@ -14,75 +13,71 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      ################################################################
-      # STEP 1: Capture the event payload (so we can do custom logic)
-      ################################################################
+      #────────────────────────────────────────────────────────────────────────────
+      # STEP 1: Capture full event payload (base64) for downstream steps
+      #────────────────────────────────────────────────────────────────────────────
       - name: Capture GitHub event payload
         run: |
-          echo "GITHUB_EVENT_PAYLOAD=$(echo '${{ toJson(github.event) }}' | base64 -w0)" >> $GITHUB_ENV
+          echo "GITHUB_EVENT_PAYLOAD=$(echo '${{ toJson(github.event) }}' \
+            | base64 -w0)" >> $GITHUB_ENV
 
-      ################################################################
-      # STEP 2: Quick label/title checks => skip if:
-      #   - 'manual-test' label missing
-      #   - Issue title does not start with "[Manual Test]"
-      ################################################################
+      #────────────────────────────────────────────────────────────────────────────
+      # STEP 2: Preliminary label/title check
+      #         — writes `skip=true/false` into $GITHUB_OUTPUT
+      #────────────────────────────────────────────────────────────────────────────
       - name: Preliminary label/title check
         id: label_and_title
         run: |
           EVENT_JSON="$(echo "$GITHUB_EVENT_PAYLOAD" | base64 -d)"
 
           LABELS="$(echo "$EVENT_JSON" | jq -r '.issue.labels[].name')"
-          ISSUE_TITLE="$(echo "$EVENT_JSON" | jq -r '.issue.title')"
+          TITLE="$(echo "$EVENT_JSON" | jq -r '.issue.title')"
 
-          echo "Labels found:"
-          echo "$LABELS"
-          echo "Issue title: $ISSUE_TITLE"
-
-          # Check exact label
-          echo "$LABELS" | grep -xq 'manual-test' || {
-            echo "No 'manual-test' label. Skipping workflow."
-            echo "::set-output name=skip::true"
-            exit 0
-          }
-
-          # Check title prefix
-          if [[ "$ISSUE_TITLE" != "[Manual Test]"* ]]; then
-            echo "Issue title does not start with '[Manual Test]'. Skipping workflow."
-            echo "::set-output name=skip::true"
+          # If no 'manual-test' label, skip
+          if ! echo "$LABELS" | grep -xq 'manual-test'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          echo "::set-output name=skip::false"
+          # If title doesn't start with '[Manual Test]', skip
+          if [[ "$TITLE" != "[Manual Test]"* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "skip=false" >> $GITHUB_OUTPUT
 
       - name: Stop if skipping
         if: steps.label_and_title.outputs.skip == 'true'
         run: |
-          echo "Skipping further steps..."
+          echo "⏭️  Skipping rest of workflow."
           exit 0
 
-      ################################################################
-      # STEP 3: Parse required form fields (blank-line safe)
-      ################################################################
+      #────────────────────────────────────────────────────────────────────────────
+      # STEP 3: Parse form fields (blank-line–safe)
+      #────────────────────────────────────────────────────────────────────────────
       - name: Parse form fields
         id: parse_body
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const issueBody = `${process.env.ISSUE_BODY || ''}`.trim()
-              || `${github.event.issue.body || ''}`.trim();
+            // Decode the payload we captured
+            const payload = JSON.parse(
+              Buffer.from(process.env.GITHUB_EVENT_PAYLOAD, 'base64').toString()
+            );
 
-            // Retrieve the next non-blank line after a label
-            function getField(fieldLabel) {
-              const lines = issueBody.split('\n');
+            const body = (payload.issue.body || '').trim();
+
+            function getField(label) {
+              const lines = body.split('\n');
               for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (line.includes(fieldLabel)) {
+                if (lines[i].includes(label)) {
+                  // advance until a non-empty line
                   let j = i + 1;
                   while (j < lines.length) {
-                    const nextLine = lines[j].trim();
-                    if (nextLine !== '') {
-                      return nextLine;
-                    }
+                    const txt = lines[j].trim();
+                    if (txt) return txt;
                     j++;
                   }
                   return null;
@@ -91,8 +86,8 @@ jobs:
               return null;
             }
 
-            // The fields we consider "required"
-            const requiredFields = {
+            // Required fields
+            const mapping = {
               test_id: '🧪 Select a Test',
               test_result: '✅ Test Result',
               os_used: '🖥️ Operating System',
@@ -100,35 +95,31 @@ jobs:
               labview_bitness: '💻 LabVIEW Bitness'
             };
 
-            // Parse them
-            let parsed = {};
-            for (const [key, label] of Object.entries(requiredFields)) {
-              const val = getField(label);
-              if (!val) {
-                core.setFailed(`Missing or invalid field: '${key}' (label: '${label}')`);
+            const parsed = {};
+            for (const [key, lbl] of Object.entries(mapping)) {
+              const v = getField(lbl);
+              if (!v) {
+                core.setFailed(`Missing or invalid field '${key}' (label: '${lbl}')`);
                 return;
               }
-              parsed[key] = val;
+              parsed[key] = v;
             }
 
-            // Validate test_result
-            const validResults = ['Passed', 'Failed', 'Needs Review'];
-            if (!validResults.includes(parsed.test_result)) {
-              core.setFailed(`Invalid 'test_result': '${parsed.test_result}'. Must be Passed, Failed, or Needs Review.`);
+            // Validate Test Result
+            if (!['Passed','Failed','Needs Review'].includes(parsed.test_result)) {
+              core.setFailed(
+                `Invalid Test Result '${parsed.test_result}'. Must be Passed, Failed, or Needs Review.`
+              );
               return;
             }
 
-            // Optional "notes"
-            const notesLabel = '📝 Notes or Screenshots (optional)';
-            parsed.notes = getField(notesLabel) || '';
+            // Optional notes
+            parsed.notes = getField('📝 Notes or Screenshots (optional)') || '';
 
-            // Output
-            core.setOutput('test_id', parsed.test_id);
-            core.setOutput('test_result', parsed.test_result);
-            core.setOutput('os_used', parsed.os_used);
-            core.setOutput('labview_version', parsed.labview_version);
-            core.setOutput('labview_bitness', parsed.labview_bitness);
-            core.setOutput('notes', parsed.notes);
+            // export outputs
+            for (const [k,v] of Object.entries(parsed)) {
+              core.setOutput(k, v);
+            }
 
       ################################################################
       # STEP 4: Extract numeric test ID + Estimate from a table row
