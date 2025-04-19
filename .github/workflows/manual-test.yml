@@ -2,10 +2,7 @@ name: "Process Manual Test Issues"
 
 on:
   issues:
-    types:
-      - opened
-      - edited
-      - labeled    # NOTE: we do NOT trigger on 'unlabeled'
+    types: [opened, edited, labeled]   # no 'unlabeled' trigger ✅
 
 concurrency:
   group: manual-test-${{ github.event.issue.number }}
@@ -14,143 +11,135 @@ concurrency:
 jobs:
   process-manual-test:
     runs-on: ubuntu-latest
+
     steps:
+    #────────────────────────────────────────────────────────────────────
+    # 1) Persist the entire event so we never hit “cannot read property issue”
+    #────────────────────────────────────────────────────────────────────
+    - name: Capture GitHub event payload
+      run: |
+        echo "GITHUB_EVENT_PAYLOAD=$(echo '${{ toJson(github.event) }}' | base64 -w0)" >> $GITHUB_ENV
 
-      #────────────────────────────────────────────────────────────────────────────
-      # STEP 1: Capture the full event payload so we never rely on `github.event.issue`
-      #────────────────────────────────────────────────────────────────────────────
-      - name: Capture GitHub event payload
-        run: |
-          echo "GITHUB_EVENT_PAYLOAD=$(echo '${{ toJson(github.event) }}' \
-            | base64 -w0)" >> $GITHUB_ENV
+    #────────────────────────────────────────────────────────────────────
+    # 2) Quick skip if the label or title aren’t right
+    #────────────────────────────────────────────────────────────────────
+    - name: Preliminary label/title check
+      id: label_and_title
+      run: |
+        EVENT_JSON=$(echo "$GITHUB_EVENT_PAYLOAD" | base64 -d)
+        LABELS=$(echo "$EVENT_JSON" | jq -r '.issue.labels[].name')
+        TITLE=$(echo "$EVENT_JSON" | jq -r '.issue.title')
 
-      #────────────────────────────────────────────────────────────────────────────
-      # STEP 2: Quick skip if no manual-test label or title prefix
-      #────────────────────────────────────────────────────────────────────────────
-      - name: Preliminary label/title check
-        id: label_and_title
-        run: |
-          EVENT_JSON=$(echo "$GITHUB_EVENT_PAYLOAD" | base64 -d)
-          LABELS=$(echo "$EVENT_JSON" | jq -r '.issue.labels[].name')
-          TITLE=$(echo "$EVENT_JSON" | jq -r '.issue.title')
-
-          if ! echo "$LABELS" | grep -xq 'manual-test'; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          if [[ "$TITLE" != "[Manual Test]"* ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          echo "skip=false" >> $GITHUB_OUTPUT
-
-      - name: Abort if skipping
-        if: steps.label_and_title.outputs.skip == 'true'
-        run: |
-          echo "⏭️  Skipping manual‑test workflow."
+        if ! echo "$LABELS" | grep -xq 'manual-test'; then
+          echo "skip=true" >> $GITHUB_OUTPUT
           exit 0
+        fi
+        if [[ "$TITLE" != "[Manual Test]"* ]]; then
+          echo "skip=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        echo "skip=false" >> $GITHUB_OUTPUT
 
-      #────────────────────────────────────────────────────────────────────────────
-      # STEP 3: Parse every field from the issue body (handles blank lines)
-      #────────────────────────────────────────────────────────────────────────────
-      - name: Parse form fields
-        id: parse_body
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const payload = JSON.parse(
-              Buffer.from(process.env.GITHUB_EVENT_PAYLOAD, 'base64').toString()
-            );
-            const body = (payload.issue.body || '').trim();
+    - name: Abort if skipping
+      if: steps.label_and_title.outputs.skip == 'true'
+      run: |
+        echo "⏭️  Skipping — not a manual‑test issue."
+        exit 0
 
-            function getField(label) {
-              const lines = body.split('\n');
-              for (let i = 0; i < lines.length; i++) {
-                if (lines[i].includes(label)) {
-                  let j = i + 1;
-                  while (j < lines.length) {
-                    const txt = lines[j].trim();
-                    if (txt) return txt;
-                    j++;
-                  }
-                  return null;
+    #────────────────────────────────────────────────────────────────────
+    # 3) Parse the body for custom‑field values (estimate = optional)
+    #────────────────────────────────────────────────────────────────────
+    - name: Parse form fields
+      id: parse_body
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const payload = JSON.parse(
+            Buffer.from(process.env.GITHUB_EVENT_PAYLOAD, 'base64').toString()
+          );
+          const body = (payload.issue.body || '').trim();
+
+          function getField(label) {
+            const lines = body.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].includes(label)) {
+                let j = i + 1;
+                while (j < lines.length) {
+                  const txt = lines[j].trim();
+                  if (txt) return txt;
+                  j++;
                 }
+                return null;
               }
-              return null;
             }
+            return null;
+          }
 
-            // Map every custom field label to a key
-            const mapping = {
-              test_id:      '🧪 Select a Test',
-              labview_version: '🧰 LabVIEW Version Used',
-              labview_bitness: '💻 LabVIEW Bitness',
-              os_used:      '🖥️ Operating System',
-              test_result:  '✅ Test Result',
-              notes:        '📝 Notes or Screenshots (optional)',
-              estimate:     'Estimate',
-              start_date:   'Start Date',
-              end_date:     'End Date'
-            };
+          const mapping = {
+            test_id:          '🧪 Select a Test',
+            labview_version:  '🧰 LabVIEW Version Used',
+            labview_bitness:  '💻 LabVIEW Bitness',
+            os_used:          '🖥️ Operating System',
+            test_result:      '✅ Test Result',
+            notes:            '📝 Notes or Screenshots (optional)',
+            estimate:         'Estimate',          // <- OPTIONAL
+            start_date:       'Start Date',
+            end_date:         'End Date'
+          };
 
-            const parsed = {};
-            for (const [key, label] of Object.entries(mapping)) {
-              const v = getField(label);
-              if (!v && key !== 'notes') {
-                core.setFailed(`Missing or invalid field '${key}' (label: '${label}')`);
-                return;
-              }
-              parsed[key] = v || '';
-            }
+          const optional = new Set(['notes', 'estimate']);
+          const parsed = {};
 
-            // Validate Test Result
-            if (!['Passed','Failed','Needs Review'].includes(parsed.test_result)) {
-              core.setFailed(
-                `Invalid Test Result '${parsed.test_result}'. Must be Passed, Failed, or Needs Review.`
-              );
+          for (const [key, label] of Object.entries(mapping)) {
+            const val = getField(label);
+            if (!val && !optional.has(key)) {
+              core.setFailed(`Missing required field: '${key}' (label '${label}')`);
               return;
             }
+            parsed[key] = val || '';
+          }
 
-            // Validate Estimate is numeric
-            if (!/^\d+(\.\d+)?$/.test(parsed.estimate)) {
-              core.setFailed(`Estimate must be a number. Got: '${parsed.estimate}'`);
-              return;
-            }
+          // Validate Test Result
+          if (!['Passed','Failed','Needs Review'].includes(parsed.test_result)) {
+            core.setFailed(`Invalid Test Result '${parsed.test_result}'.`);
+            return;
+          }
 
-            // (You can add date‐format validation for start_date/end_date here if you like)
+          // Validate Estimate *if provided*
+          if (parsed.estimate && !/^\d+(\.\d+)?$/.test(parsed.estimate)) {
+            core.setFailed(`Estimate must be numeric when supplied (got '${parsed.estimate}').`);
+            return;
+          }
 
-            // Emit everything as outputs
-            for (const [k, v] of Object.entries(parsed)) {
-              core.setOutput(k, v);
-            }
+          // Emit outputs via $GITHUB_OUTPUT (no ::set-output)
+          for (const [k, v] of Object.entries(parsed)) core.setOutput(k, v);
 
-      #────────────────────────────────────────────────────────────────────────────
-      # STEP 4: Extract numeric TestID & Estimate for downstream steps
-      #────────────────────────────────────────────────────────────────────────────
-      - name: Extract numeric TestID & Estimate
-        id: extract_numeric
-        run: |
-          raw_test_id="${{ steps.parse_body.outputs.test_id }}"
-          raw_estimate="${{ steps.parse_body.outputs.estimate }}"
+    #────────────────────────────────────────────────────────────────────
+    # 4) Extract numeric TestID only (Estimate comes later)
+    #────────────────────────────────────────────────────────────────────
+    - name: Extract numeric TestID
+      id: extract_test_id
+      run: |
+        raw_test_id="${{ steps.parse_body.outputs.test_id }}"
+        numeric_test_id=$(echo "$raw_test_id" | grep -oE '[0-9]+' || true)
 
-          numeric_test_id=$(echo "$raw_test_id" | grep -oE '[0-9]+' || true)
-          numeric_estimate=$(echo "$raw_estimate" | grep -oE '[0-9]+(\.[0-9]+)?' || true)
+        if [ -z "$numeric_test_id" ]; then
+          echo "❌ Unable to extract numeric portion of TestID: '$raw_test_id'" >&2
+          exit 1
+        fi
 
-          if [ -z "$numeric_test_id" ] || [ -z "$numeric_estimate" ]; then
-            echo "❌ Could not extract numeric values from TestID or Estimate" >&2
-            exit 1
-          fi
+        echo "numeric_test_id=$numeric_test_id" >> $GITHUB_OUTPUT
 
-          echo "numeric_test_id=$numeric_test_id" >> $GITHUB_OUTPUT
-          echo "numeric_estimate=$numeric_estimate" >> $GITHUB_OUTPUT
-
-      #────────────────────────────────────────────────────────────────────────────
-      # ... your remaining production steps go here, referencing:
-      #     ${{ steps.extract_numeric.outputs.numeric_test_id }}
-      #     ${{ steps.extract_numeric.outputs.numeric_estimate }}
-      #     plus all the other parsed fields:
-      #       ${{ steps.parse_body.outputs.start_date }}, etc.
-      #────────────────────────────────────────────────────────────────────────────
+    #────────────────────────────────────────────────────────────────────
+    # 5) — YOUR NEXT STEPS HERE —
+    #    • calculate Estimate
+    #    • push data to Projects / custom‑fields
+    #    • etc.
+    #    You’ll have:
+    #      - ${{ steps.extract_test_id.outputs.numeric_test_id }}
+    #      - ${{ steps.parse_body.outputs.labview_version }} … etc.
+    #────────────────────────────────────────────────────────────────────
 
 
       ################################################################
