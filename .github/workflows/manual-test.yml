@@ -54,34 +54,35 @@ jobs:
           echo "Skipping workflow."
           exit 0
 
-      - name: Parse issue body
+      - name: Parse issue body (enhanced parser)
         id: parse_body
         uses: actions/github-script@v6
         with:
           script: |
-            const issueBody = `\${
-              process.env.ISSUE_BODY || ''
-            }`.trim() || `\${
-              github.event.issue.body || ''
-            }`.trim();
-
-            // Utility function to get the line after a heading, if present
+            const issueBody = `\${process.env.ISSUE_BODY || ''}`.trim() || `\${github.event.issue.body || ''}`.trim();
+      
+            // Updated function to skip over blank lines
             function getField(fieldLabel) {
-              // We search line by line for an exact match or a line that starts with the label
               const lines = issueBody.split('\n');
               for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (line.includes(fieldLabel)) {
-                  // If value is on the same line after ':', or we take next line
-                  // For simplicity, just check next line in this example:
-                  if (lines[i+1]) {
-                    return lines[i+1].trim();
+                  // Move to subsequent lines until we find a non-blank line or run out
+                  let j = i + 1;
+                  while (j < lines.length) {
+                    const nextLine = lines[j].trim();
+                    if (nextLine !== '') {
+                      return nextLine; // First non-blank line
+                    }
+                    j++;
                   }
+                  // If we exhaust lines or only see blanks, treat it as missing
+                  return null;
                 }
               }
-              return null; // Not found
+              return null; // Label not found
             }
-
+      
             const requiredFields = {
               test_id: '🧪 Select a Test',
               test_result: '✅ Test Result',
@@ -89,7 +90,7 @@ jobs:
               labview_version: '🧰 LabVIEW Version Used',
               labview_bitness: '💻 LabVIEW Bitness'
             };
-
+      
             // Parse required fields
             let parsed = {};
             for (const [key, label] of Object.entries(requiredFields)) {
@@ -100,26 +101,27 @@ jobs:
               }
               parsed[key] = val;
             }
-
+      
             // Validate test_result
             const validResults = ['Passed', 'Failed', 'Needs Review'];
             if (!validResults.includes(parsed.test_result)) {
               core.setFailed(`Invalid test_result: '${parsed.test_result}'. Must be 'Passed', 'Failed', or 'Needs Review'.`);
               return;
             }
-
+      
             // Parse optional notes
             const notesLabel = '📝 Notes or Screenshots (optional)';
             const optionalNotes = getField(notesLabel) || '';
             parsed.notes = optionalNotes;
-
+      
+            // Output each field so subsequent steps can read them
             core.setOutput('test_id', parsed.test_id);
             core.setOutput('test_result', parsed.test_result);
             core.setOutput('os_used', parsed.os_used);
             core.setOutput('labview_version', parsed.labview_version);
             core.setOutput('labview_bitness', parsed.labview_bitness);
             core.setOutput('notes', parsed.notes);
-
+      
       - name: Find matching table row and parse numeric TestID + Estimate
         id: parse_table
         uses: actions/github-script@v6
