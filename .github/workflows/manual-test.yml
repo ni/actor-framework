@@ -2,7 +2,10 @@ name: "Process Manual Test Issues"
 
 on:
   issues:
-    types: [opened, edited, labeled]  # no 'unlabeled' trigger
+    types:
+      - opened
+      - edited
+      - labeled    # NOTE: we do NOT trigger on 'unlabeled'
 
 concurrency:
   group: manual-test-${{ github.event.issue.number }}
@@ -11,10 +14,10 @@ concurrency:
 jobs:
   process-manual-test:
     runs-on: ubuntu-latest
-
     steps:
+
       #────────────────────────────────────────────────────────────────────────────
-      # STEP 1: Capture full event payload (base64) for downstream steps
+      # STEP 1: Capture the full event payload so we never rely on `github.event.issue`
       #────────────────────────────────────────────────────────────────────────────
       - name: Capture GitHub event payload
         run: |
@@ -22,39 +25,33 @@ jobs:
             | base64 -w0)" >> $GITHUB_ENV
 
       #────────────────────────────────────────────────────────────────────────────
-      # STEP 2: Preliminary label/title check
-      #         — writes `skip=true/false` into $GITHUB_OUTPUT
+      # STEP 2: Quick skip if no manual-test label or title prefix
       #────────────────────────────────────────────────────────────────────────────
       - name: Preliminary label/title check
         id: label_and_title
         run: |
-          EVENT_JSON="$(echo "$GITHUB_EVENT_PAYLOAD" | base64 -d)"
+          EVENT_JSON=$(echo "$GITHUB_EVENT_PAYLOAD" | base64 -d)
+          LABELS=$(echo "$EVENT_JSON" | jq -r '.issue.labels[].name')
+          TITLE=$(echo "$EVENT_JSON" | jq -r '.issue.title')
 
-          LABELS="$(echo "$EVENT_JSON" | jq -r '.issue.labels[].name')"
-          TITLE="$(echo "$EVENT_JSON" | jq -r '.issue.title')"
-
-          # If no 'manual-test' label, skip
           if ! echo "$LABELS" | grep -xq 'manual-test'; then
             echo "skip=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-
-          # If title doesn't start with '[Manual Test]', skip
           if [[ "$TITLE" != "[Manual Test]"* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-
           echo "skip=false" >> $GITHUB_OUTPUT
 
-      - name: Stop if skipping
+      - name: Abort if skipping
         if: steps.label_and_title.outputs.skip == 'true'
         run: |
-          echo "⏭️  Skipping rest of workflow."
+          echo "⏭️  Skipping manual‑test workflow."
           exit 0
 
       #────────────────────────────────────────────────────────────────────────────
-      # STEP 3: Parse form fields (blank-line–safe)
+      # STEP 3: Parse every field from the issue body (handles blank lines)
       #────────────────────────────────────────────────────────────────────────────
       - name: Parse form fields
         id: parse_body
@@ -62,18 +59,15 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Decode the payload we captured
             const payload = JSON.parse(
               Buffer.from(process.env.GITHUB_EVENT_PAYLOAD, 'base64').toString()
             );
-
             const body = (payload.issue.body || '').trim();
 
             function getField(label) {
               const lines = body.split('\n');
               for (let i = 0; i < lines.length; i++) {
                 if (lines[i].includes(label)) {
-                  // advance until a non-empty line
                   let j = i + 1;
                   while (j < lines.length) {
                     const txt = lines[j].trim();
@@ -86,23 +80,27 @@ jobs:
               return null;
             }
 
-            // Required fields
+            // Map every custom field label to a key
             const mapping = {
-              test_id: '🧪 Select a Test',
-              test_result: '✅ Test Result',
-              os_used: '🖥️ Operating System',
+              test_id:      '🧪 Select a Test',
               labview_version: '🧰 LabVIEW Version Used',
-              labview_bitness: '💻 LabVIEW Bitness'
+              labview_bitness: '💻 LabVIEW Bitness',
+              os_used:      '🖥️ Operating System',
+              test_result:  '✅ Test Result',
+              notes:        '📝 Notes or Screenshots (optional)',
+              estimate:     'Estimate',
+              start_date:   'Start Date',
+              end_date:     'End Date'
             };
 
             const parsed = {};
-            for (const [key, lbl] of Object.entries(mapping)) {
-              const v = getField(lbl);
-              if (!v) {
-                core.setFailed(`Missing or invalid field '${key}' (label: '${lbl}')`);
+            for (const [key, label] of Object.entries(mapping)) {
+              const v = getField(label);
+              if (!v && key !== 'notes') {
+                core.setFailed(`Missing or invalid field '${key}' (label: '${label}')`);
                 return;
               }
-              parsed[key] = v;
+              parsed[key] = v || '';
             }
 
             // Validate Test Result
@@ -113,100 +111,47 @@ jobs:
               return;
             }
 
-            // Optional notes
-            parsed.notes = getField('📝 Notes or Screenshots (optional)') || '';
-
-            // export outputs
-            for (const [k,v] of Object.entries(parsed)) {
-              core.setOutput(k, v);
-            }
-
-      ################################################################
-      # STEP 4: Extract numeric test ID + Estimate from a table row
-      ################################################################
-      - name: Extract numeric TestID & Estimate
-        id: parse_table
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const aliasRaw = core.getInput('test_id', { required: true });
-            const body = github.event.issue.body || '';
-            
-            // Convert underscores => spaces, for case-insensitive compare
-            const aliasCompare = aliasRaw.replace(/_/g, ' ').toLowerCase();
-            let numericID = null;
-            let estimateVal = null;
-
-            const lines = body.split('\n');
-            for (const row of lines) {
-              const line = row.trim();
-              // Suppose each relevant row in the table starts with "|"
-              if (!line.startsWith('|')) continue;
-              const cells = line.split('|').map(x => x.trim()).filter(Boolean);
-              // For example: | Actor Creation | *20 Min* | [Some Link](...) |
-              // Might see cells like: [0]=, [1]=Actor Creation, [2]=*20 Min*, [3]=[Link](URL)...
-
-              if (cells.length < 4) continue; // skip invalid table lines
-
-              // cells[1] => "Actor Creation" (title)
-              // cells[2] => "*20 Min*" (estimate)
-              // cells[3] => "[Some link](...)"
-
-              const possibleTitle = cells[1].toLowerCase();
-              if (possibleTitle === aliasCompare) {
-                // parse estimate
-                const estRaw = cells[2] || '';
-                const estNoAsterisk = estRaw.replace(/\*/g, '').trim(); 
-                if (!estNoAsterisk) {
-                  core.setFailed(`No 'Estimate' found for test alias '${aliasRaw}'.`);
-                  return;
-                }
-                // We'll attempt to parse it as a number if it looks numeric
-                // If it's something like "20 Min", we just strip the alpha. 
-                // For a pure numeric field, let's parse out digits:
-                const numMatch = estNoAsterisk.match(/\d+/);
-                if (!numMatch) {
-                  core.setFailed(`Estimate does not contain a numeric portion: '${estNoAsterisk}'`);
-                  return;
-                }
-                estimateVal = parseInt(numMatch[0], 10); 
-                if (isNaN(estimateVal)) {
-                  core.setFailed(`Cannot parse estimate as number: '${estNoAsterisk}'`);
-                  return;
-                }
-
-                // parse link => 7-digit .md
-                const linkCell = cells[3];
-                const linkMatch = linkCell.match(/\(([^)]+)\)/); 
-                if (!linkMatch) {
-                  core.setFailed(`No link found in table for alias='${aliasRaw}'.`);
-                  return;
-                }
-                const linkURL = linkMatch[1];
-                const segs = linkURL.split('/');
-                const lastSeg = segs[segs.length - 1];
-                if (!lastSeg.endsWith('.md')) {
-                  core.setFailed(`Link not referencing a .md file => '${linkURL}'`);
-                  return;
-                }
-                const baseName = lastSeg.replace('.md', '');
-                if (!/^\d{7}$/.test(baseName)) {
-                  core.setFailed(`Not a 7-digit .md => '${lastSeg}'`);
-                  return;
-                }
-                numericID = baseName;
-                break;
-              }
-            }
-
-            if (!numericID) {
-              core.setFailed(`No matching row found for test alias '${aliasRaw}'.`);
+            // Validate Estimate is numeric
+            if (!/^\d+(\.\d+)?$/.test(parsed.estimate)) {
+              core.setFailed(`Estimate must be a number. Got: '${parsed.estimate}'`);
               return;
             }
 
-            // Expose as outputs
-            core.setOutput('numeric_id', numericID);
-            core.setOutput('estimate_num', estimateVal.toString());
+            // (You can add date‐format validation for start_date/end_date here if you like)
+
+            // Emit everything as outputs
+            for (const [k, v] of Object.entries(parsed)) {
+              core.setOutput(k, v);
+            }
+
+      #────────────────────────────────────────────────────────────────────────────
+      # STEP 4: Extract numeric TestID & Estimate for downstream steps
+      #────────────────────────────────────────────────────────────────────────────
+      - name: Extract numeric TestID & Estimate
+        id: extract_numeric
+        run: |
+          raw_test_id="${{ steps.parse_body.outputs.test_id }}"
+          raw_estimate="${{ steps.parse_body.outputs.estimate }}"
+
+          numeric_test_id=$(echo "$raw_test_id" | grep -oE '[0-9]+' || true)
+          numeric_estimate=$(echo "$raw_estimate" | grep -oE '[0-9]+(\.[0-9]+)?' || true)
+
+          if [ -z "$numeric_test_id" ] || [ -z "$numeric_estimate" ]; then
+            echo "❌ Could not extract numeric values from TestID or Estimate" >&2
+            exit 1
+          fi
+
+          echo "numeric_test_id=$numeric_test_id" >> $GITHUB_OUTPUT
+          echo "numeric_estimate=$numeric_estimate" >> $GITHUB_OUTPUT
+
+      #────────────────────────────────────────────────────────────────────────────
+      # ... your remaining production steps go here, referencing:
+      #     ${{ steps.extract_numeric.outputs.numeric_test_id }}
+      #     ${{ steps.extract_numeric.outputs.numeric_estimate }}
+      #     plus all the other parsed fields:
+      #       ${{ steps.parse_body.outputs.start_date }}, etc.
+      #────────────────────────────────────────────────────────────────────────────
+
 
       ################################################################
       # STEP 5a: Find the previous [Manual Test] issue for same author
