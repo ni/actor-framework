@@ -13,11 +13,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Save the entire event payload in base64 form to avoid shell-parse errors.
+      - name: Prepare event JSON
+        run: |
+          echo "GITHUB_EVENT_PAYLOAD=$(echo '${{ toJson(github.event) }}' | base64 -w0)" >> $GITHUB_ENV
+
+      # 2) Check label 'manual-test' & title prefix '[Manual Test]'
       - name: Check if 'manual-test' label exists & title starts with '[Manual Test]'
         id: label_and_title_check
         run: |
-          LABELS="$(jq -r '.issue.labels[].name' <<< "${{ toJson(github.event) }}")"
-          ISSUE_TITLE="$(jq -r '.issue.title' <<< "${{ toJson(github.event) }}")"
+          # Decode the event JSON from base64
+          EVENT_JSON="$(echo "$GITHUB_EVENT_PAYLOAD" | base64 -d)"
+
+          # Extract labels and title from the decoded JSON
+          LABELS="$(echo "$EVENT_JSON" | jq -r '.issue.labels[].name')"
+          ISSUE_TITLE="$(echo "$EVENT_JSON" | jq -r '.issue.title')"
+
+          echo "Labels found: $LABELS"
+          echo "Issue title: $ISSUE_TITLE"
 
           # Check for exact 'manual-test' label
           echo "$LABELS" | grep -xq 'manual-test' || {
