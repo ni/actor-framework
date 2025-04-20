@@ -2,7 +2,7 @@ name: Manual Test Processor
 
 on:
   issues:
-    types: [opened, edited]    # run on new or modified issues
+    types: [opened, edited]            # new or modified issues
   workflow_dispatch:
     inputs:
       number:
@@ -39,7 +39,7 @@ jobs:
       id: build
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.PROJECTS_PAT }}   # ← renamed secret
+        github-token: ${{ secrets.PROJECTS_PAT }}
         script: |
           const fs   = require('fs');
           const path = require('path');
@@ -121,7 +121,7 @@ jobs:
       id: prev
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.PROJECTS_PAT }}   # ← renamed secret
+        github-token: ${{ secrets.PROJECTS_PAT }}
         script: |
           const {owner,repo} = context.repo;
           const cur     = parseInt(context.issue.number,10);
@@ -171,7 +171,7 @@ jobs:
     - name: Update project fields
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.PROJECTS_PAT }}   # ← renamed secret
+        github-token: ${{ secrets.PROJECTS_PAT }}
         script: |
           const {owner,repo} = context.repo;
           const issueNode    = context.payload.issue.node_id;
@@ -248,6 +248,8 @@ jobs:
 
             const map = {};
             for (const n of fv.node.fieldValues.nodes){
+              // ---------- FIX: skip nodes without a field object ----------
+              if (!n.field || !n.field.name) continue;
               map[n.field.name] = {
                 fieldId : n.field.id,
                 type    : n.__typename,
