@@ -2,8 +2,8 @@ name: Manual Test Processor
 
 on:
   issues:
-    types: [opened, edited]   # ← added “edited” so the workflow triggers on modifications
-  workflow_dispatch:          # still let you run it manually if you like
+    types: [opened, edited]    # run on new or modified issues
+  workflow_dispatch:
     inputs:
       number:
         description: 'Issue number (optional override)'
@@ -39,7 +39,7 @@ jobs:
       id: build
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.PROJECTS_TOKEN }}   # ← token supplied
+        github-token: ${{ secrets.PROJECTS_PAT }}   # ← renamed secret
         script: |
           const fs   = require('fs');
           const path = require('path');
@@ -77,7 +77,7 @@ jobs:
           const rows = templateText
             .split('\n')
             .map(l => l.trimStart())
-            .filter(l => l.startsWith('|'));       // only table rows
+            .filter(l => l.startsWith('|'));
 
           if (rows.length === 0)
             fail('No markdown table found inside the issue template.');
@@ -121,7 +121,7 @@ jobs:
       id: prev
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.PROJECTS_TOKEN }}   # ← token supplied
+        github-token: ${{ secrets.PROJECTS_PAT }}   # ← renamed secret
         script: |
           const {owner,repo} = context.repo;
           const cur     = parseInt(context.issue.number,10);
@@ -171,7 +171,7 @@ jobs:
     - name: Update project fields
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.PROJECTS_TOKEN }}   # ← token supplied
+        github-token: ${{ secrets.PROJECTS_PAT }}   # ← renamed secret
         script: |
           const {owner,repo} = context.repo;
           const issueNode    = context.payload.issue.node_id;
