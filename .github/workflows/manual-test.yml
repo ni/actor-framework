@@ -1,312 +1,310 @@
-name: "Process Manual Test Issues"
-
-########################################################################
-#  EVENT
-########################################################################
+name: "Manual Test Issue Processing"
 on:
   issues:
-    types: [opened, edited, labeled]      # we do not trigger on “un‑labeled”
+    types: [opened, edited, labeled]
+  # (Optionally, a manual trigger could be added here via workflow_dispatch if needed for re-running)
 
-########################################################################
-#  SERIALISE BY ISSUE
-########################################################################
 concurrency:
   group: manual-test-${{ github.event.issue.number }}
   cancel-in-progress: true
 
-########################################################################
-#  MAIN JOB
-########################################################################
 jobs:
   process-manual-test:
     runs-on: ubuntu-latest
-
+    # Only run this job if the issue has the manual-test label and proper title prefix
+    if: contains(toJson(github.event.issue.labels), 'manual-test') && startsWith(github.event.issue.title, '[Manual Test]')
     steps:
+      - name: Checkout repository (for issue form template)
+        uses: actions/checkout@v3
 
-    #───────────────────────────────────────────────────────────────────
-    # 1) Persist the full event payload (base64) – rock‑solid in later
-    #    github‑script steps, no undefined‑property errors ever again.
-    #───────────────────────────────────────────────────────────────────
-    - name: Capture GitHub event payload
-      run: |
-        echo "GITHUB_EVENT_PAYLOAD=$(echo '${{ toJson(github.event) }}' | base64 -w0)" >> $GITHUB_ENV
+      - name: Parse Issue Form Data
+        id: parse
+        uses: issue-ops/parser@v1.0.0
+        with:
+          body: ${{ github.event.issue.body }}
+          issue-form-template: manual-test-report.yml
 
-    #───────────────────────────────────────────────────────────────────
-    # 2) Fast gate – bail if it’s not a manual‑test issue
-    #───────────────────────────────────────────────────────────────────
-    - name: Preliminary label/title gate
-      id: prelim
-      run: |
-        EVENT_JSON="$(echo "$GITHUB_EVENT_PAYLOAD" | base64 -d)"
-        LABELS="$(echo "$EVENT_JSON" | jq -r '.issue.labels[].name')"
-        TITLE="$(echo "$EVENT_JSON" | jq -r '.issue.title')"
-        if ! echo "$LABELS" | grep -xq 'manual-test'; then
-          echo "skip=true" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-        if [[ "$TITLE" != "[Manual Test]"* ]]; then
-          echo "skip=true" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-        echo "skip=false" >> $GITHUB_OUTPUT
+      - name: Display Parsed Data (debug)
+        run: |
+          echo "Reporter: ${{ steps.parse.outputs.json.user_name }}"
+          echo "Test ID: ${{ steps.parse.outputs.json.test_id }}"
+          echo "LabVIEW Version: ${{ steps.parse.outputs.json.labview_version }}"
+          echo "LabVIEW Bitness: ${{ steps.parse.outputs.json.labview_bitness }}"
+          echo "Operating System: ${{ steps.parse.outputs.json.os_used }}"
+          echo "Test Result: ${{ steps.parse.outputs.json.test_result }}"
+          echo "Notes: ${{ steps.parse.outputs.json.notes }}"
 
-    - name: Abort early (not a manual test)
-      if: steps.prelim.outputs.skip == 'true'
-      run: echo "⏭️  Not a manual‑test issue – workflow exited."
-
-    #───────────────────────────────────────────────────────────────────
-    # 3) Parse form fields   +   scrape the markdown table for Estimate
-    #───────────────────────────────────────────────────────────────────
-    - name: Parse form & gather Estimate
-      id: parse_body
-      uses: actions/github-script@v6
-      with:
+      - name: Validate and Prepare Data
+        id: process
+        uses: actions/github-script@v6
+        env:
+          FORM_JSON: ${{ steps.parse.outputs.json }}
         script: |
-          const payload = JSON.parse(
-            Buffer.from(process.env.GITHUB_EVENT_PAYLOAD,'base64').toString()
-          );
-          const body = (payload.issue.body || '').trim();
-
-          //----------------------------------------------------------------
-          // helpers
-          //----------------------------------------------------------------
-          const getField = label => {
-            const lines = body.split('\n');
-            for (let i=0;i<lines.length;i++){
-              if (lines[i].includes(label)){
-                for (let j=i+1;j<lines.length;j++){
-                  const t = lines[j].trim();
-                  if (t) return t;
-                }
-                return null;
+          const form = JSON.parse(process.env.FORM_JSON);
+          // 1. Validate required fields from the form
+          const requiredFields = ['test_id', 'labview_version', 'labview_bitness', 'os_used', 'test_result'];
+          for (const field of requiredFields) {
+            if (!form[field] || (typeof form[field] === 'string' && form[field].trim() === '')) {
+              core.setFailed(`❌ Missing or empty field: ${field}`);
+              return;
+            }
+          }
+          const validResults = ['Passed', 'Failed', 'Needs Review'];
+          if (!validResults.includes(form.test_result)) {
+            core.setFailed(`❌ Invalid Test Result: ${form.test_result}`);
+            return;
+          }
+          // 2. Extract numeric part of Test ID (if any)
+          const match = form.test_id.match(/(\d+)/);
+          const numeric_test_id = match ? match[1] : '';
+          // 3. Scrape reference table in the issue body to get estimated minutes
+          const body = context.payload.issue.body || '';
+          let estimate_min = 0;
+          const lines = body.split('\n').filter(line => line.startsWith('|'));
+          const estMap = {};
+          for (const line of lines) {
+            if (line.includes('---')) continue;  // skip table header separator
+            const cols = line.split('|').map(col => col.trim());
+            if (cols.length < 3) continue;
+            const title = cols[1];
+            const m = cols[2].match(/(\d+)\s*Min/i);
+            if (m) {
+              const key = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+              estMap[key] = parseInt(m[1], 10);
+            }
+          }
+          const testKey = form.test_id.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+          if (estMap[testKey] !== undefined) {
+            estimate_min = estMap[testKey];
+          } else {
+            // try partial matching of keys if no exact slug match
+            for (const [k, v] of Object.entries(estMap)) {
+              if (testKey.includes(k) || k.includes(testKey)) {
+                estimate_min = v;
+                break;
               }
             }
-            return null;
-          };
-          const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+          }
+          if (estimate_min === 0) {
+            core.notice(`⚠️ No time estimate found for test "${form.test_id}" (defaulting to 0 minutes).`);
+          }
+          // 4. Set outputs for downstream steps
+          core.setOutput('user_name', form.user_name || '');
+          core.setOutput('test_id', form.test_id);
+          core.setOutput('labview_version', form.labview_version);
+          core.setOutput('labview_bitness', form.labview_bitness);
+          core.setOutput('os_used', form.os_used);
+          core.setOutput('test_result', form.test_result);
+          core.setOutput('notes', form.notes || '');
+          core.setOutput('numeric_test_id', numeric_test_id);
+          core.setOutput('estimate_min', String(estimate_min));
 
-          //----------------------------------------------------------------
-          // required dropdowns / inputs
-          //----------------------------------------------------------------
-          const mapping = {
-            test_id:         '🧪 Select a Test',
-            labview_version: '🧰 LabVIEW Version Used',
-            labview_bitness: '💻 LabVIEW Bitness',
-            os_used:         '🖥️ Operating System',
-            test_result:     '✅ Test Result'
-          };
-          const out = {};
-          for (const [k,lbl] of Object.entries(mapping)){
-            const v = getField(lbl);
-            if (!v){ core.setFailed(`Missing “${lbl}”`); return; }
-            out[k]=v;
+      - name: Find previous Manual Test issue by author
+        id: find_previous
+        uses: actions/github-script@v6
+        env:
+          CUR_ISSUE: ${{ github.event.issue.number }}
+        script: |
+          const curIssue = parseInt(process.env.CUR_ISSUE);
+          const author = context.payload.issue.user.login;
+          const { owner, repo } = context.repo;
+          const query = `repo:${owner}/${repo} label:manual-test author:${author} in:title "[Manual Test]" sort:created-desc`;
+          const result = await github.graphql(`query($q: String!){ 
+            search(query: $q, type: ISSUE, first: 5) { 
+              nodes { ... on Issue { number } } 
+            } 
+          }`, { q: query });
+          const issues = result.search.nodes.map(n => n.number);
+          const prevNum = issues.find(num => num !== curIssue) || null;
+          core.setOutput('prev_num', prevNum ? String(prevNum) : '');
+          if (prevNum) {
+            core.info(`Found previous manual test issue by ${author}: #${prevNum}`);
+          } else {
+            core.info('No previous manual test issue found for this author.');
           }
-          if (!['Passed','Failed','Needs Review'].includes(out.test_result)){
-            core.setFailed(`Invalid Test Result «${out.test_result}»`); return;
-          }
-          out.notes = getField('📝 Notes or Screenshots (optional)') || '';
 
-          //----------------------------------------------------------------
-          // Scrape the reference table for Estimate
-          //----------------------------------------------------------------
-          const rows = body.split('\n').filter(l=>l.startsWith('|'));
-          const estMap={};
-          for (const r of rows){
-            if (r.includes('---')) continue;
-            const c = r.split('|').map(x=>x.trim());
-            if (c.length<3) continue;
-            const title=c[1];
-            const m = c[2].match(/(\d+)\s*Min/i);
-            if(!m) continue;
-            estMap[slug(title)] = parseInt(m[1],10);
+      - name: Read "End Date" from previous issue (if any)
+        id: read_end
+        if: steps.find_previous.outputs.prev_num != ''
+        uses: actions/github-script@v6
+        env:
+          PREV_NUM: ${{ steps.find_previous.outputs.prev_num }}
+        script: |
+          const prevNum = parseInt(process.env.PREV_NUM);
+          const { owner, repo } = context.repo;
+          // Get the previous issue's node ID via REST
+          const prevIssue = (await github.rest.issues.get({ owner, repo, issue_number: prevNum })).data;
+          if (!prevIssue.node_id) {
+            core.setOutput('prev_end', '');
+            return;
           }
-          const alias = slug(out.test_id);
-          let est = estMap[alias];
-          if(est===undefined){
-            for(const [k,v] of Object.entries(estMap)){
-              if(alias.includes(k)||k.includes(alias)){ est=v; break; }
+          // Query project items of the previous issue (GraphQL)
+          const itemsRes = await github.graphql(`query($id: ID!){ 
+            node(id: $id) { ... on Issue { projectItems(first: 50) { nodes { id } } } } 
+          }`, { id: prevIssue.node_id });
+          const items = itemsRes.node.projectItems.nodes;
+          let prevEndDate = '';
+          // Loop through project items to find a date in "End Date" field
+          for (const item of items) {
+            const fieldsRes = await github.graphql(`query($itemId: ID!){ 
+              node(id: $itemId) { ... on ProjectV2Item { fieldValues(first: 50) { nodes { 
+                ... on ProjectV2ItemFieldDateValue { field { ... on ProjectV2FieldCommon { name } } date } 
+              } } } } 
+            }`, { itemId: item.id });
+            const dateFields = fieldsRes.node.fieldValues.nodes;
+            const endField = dateFields.find(f => f.field?.name === 'End Date' && f.date);
+            if (endField) {
+              prevEndDate = endField.date;
+              break;
             }
           }
-          if(est===undefined){ core.notice(`No estimate for «${out.test_id}»`); est=0; }
-          out.estimate_num = String(est);
-
-          //----------------------------------------------------------------
-          // numeric part of TestID (if present)
-          //----------------------------------------------------------------
-          const mDigits = out.test_id.match(/(\d+)/);
-          out.numeric_test_id = mDigits ? mDigits[1] : '';
-
-          //----------------------------------------------------------------
-          // expose outputs
-          //----------------------------------------------------------------
-          for (const [k,v] of Object.entries(out)) core.setOutput(k,v);
-
-    #───────────────────────────────────────────────────────────────────
-    # 4) Locate author’s previous “[Manual Test]” issue (GraphQL search)
-    #───────────────────────────────────────────────────────────────────
-    - name: Find prior Manual‑Test issue by author
-      id: find_previous
-      uses: actions/github-script@v6
-      env:
-        CUR_NUM: ${{ github.event.issue.number }}
-      with:
-        script: |
-          const cur = parseInt(process.env.CUR_NUM,10);
-          const author = context.payload.issue.user.login;
-          const {owner,repo} = context.repo;
-
-          const qstr = `repo:${owner}/${repo} label:manual-test author:${author} `+
-                       `in:title "[Manual Test]" sort:created-desc`;
-          const gql = `query($q:String!){
-            search(query:$q,type:ISSUE,first:20){
-              nodes{... on Issue{number}}
-            }}`;
-          const res = await github.graphql(gql,{q:qstr});
-          const prev = res.search.nodes.find(n=>n.number!==cur);
-          core.setOutput('prev_num', prev ? String(prev.number) : '');
-          if(prev) core.info(`Previous issue ⇒ #${prev.number}`);
-
-    #───────────────────────────────────────────────────────────────────
-    # 5) Read End Date from that previous issue (if any)
-    #───────────────────────────────────────────────────────────────────
-    - name: Read End Date from previous issue
-      id: read_end
-      if: steps.find_previous.outputs.prev_num != ''
-      uses: actions/github-script@v6
-      env:
-        PREV_NUM: ${{ steps.find_previous.outputs.prev_num }}
-      with:
-        script: |
-          const prev = parseInt(process.env.PREV_NUM,10);
-          const {owner,repo} = context.repo;
-          const prevIssue = (await github.rest.issues.get({owner,repo,issue_number:prev})).data;
-          const node = prevIssue.node_id;
-          if(!node){ core.setOutput('prev_end',''); return; }
-
-          const qItems=`query($id:ID!){node(id:$id){... on Issue{projectItems(first:50){nodes{id}}}}}`;
-          const items=(await github.graphql(qItems,{id:node})).node.projectItems.nodes;
-          const qFields=`query($i:ID!){node(id:$i){... on ProjectV2Item{fieldValues(first:50){
-              nodes{... on ProjectV2ItemFieldDateValue{field{... on ProjectV2FieldCommon{name}} date}}
-          }}}`;
-          let end='';
-          for(const it of items){
-            const f=(await github.graphql(qFields,{i:it.id})).node.fieldValues.nodes;
-            const hit=f.find(d=>d.field?.name==='End Date' && d.date);
-            if(hit){ end=hit.date; break; }
+          core.setOutput('prev_end', prevEndDate);
+          if (prevEndDate) {
+            core.info(`Previous End Date found: ${prevEndDate}`);
           }
-          core.setOutput('prev_end',end);
 
-    #───────────────────────────────────────────────────────────────────
-    # 6) Update project custom fields for *this* issue
-    #───────────────────────────────────────────────────────────────────
-    - name: Update project fields
-      uses: actions/github-script@v6
-      env:
-        NUM_ID:        ${{ steps.parse_body.outputs.numeric_test_id }}
-        ESTIMATE_MIN:  ${{ steps.parse_body.outputs.estimate_num }}
-        TEST_RESULT:   ${{ steps.parse_body.outputs.test_result }}
-        OS_USED:       ${{ steps.parse_body.outputs.os_used }}
-        LV_VER:        ${{ steps.parse_body.outputs.labview_version }}
-        LV_BIT:        ${{ steps.parse_body.outputs.labview_bitness }}
-        NOTES:         ${{ steps.parse_body.outputs.notes }}
-        PREV_END:      ${{ steps.read_end.outputs.prev_end }}
-      with:
+      - name: Update project fields for current issue
+        uses: actions/github-script@v6
+        env:
+          NUM_ID: ${{ steps.process.outputs.numeric_test_id }}
+          ESTIMATE_MIN: ${{ steps.process.outputs.estimate_min }}
+          TEST_RESULT: ${{ steps.process.outputs.test_result }}
+          OS_USED: ${{ steps.process.outputs.os_used }}
+          LV_VER: ${{ steps.process.outputs.labview_version }}
+          LV_BIT: ${{ steps.process.outputs.labview_bitness }}
+          NOTES: ${{ steps.process.outputs.notes }}
+          PREV_END: ${{ steps.read_end.outputs.prev_end }}
         script: |
           const {
-            NUM_ID,ESTIMATE_MIN,TEST_RESULT,OS_USED,LV_VER,
-            LV_BIT,NOTES,PREV_END
+            NUM_ID, ESTIMATE_MIN, TEST_RESULT,
+            OS_USED, LV_VER, LV_BIT, NOTES, PREV_END
           } = process.env;
-
-          const issueNode = context.payload.issue.node_id;
-          if(!issueNode){ core.notice('No node_id – cannot update projects'); return; }
-
-          // creation date in YYYY‑MM‑DD (for End Date)
-          const createdDate = context.payload.issue.created_at.slice(0,10);
-
-          //----------------------------------------------------------------
-          // helpers
-          //----------------------------------------------------------------
-          const queryItems=`query($id:ID!){node(id:$id){... on Issue{
-            projectItems(first:50){nodes{id project{id title}}}}}}`;
-          const items=(await github.graphql(queryItems,{id:issueNode}))
-                       .node.projectItems.nodes;
-
-          if(!items.length){ core.notice('Issue not in any project'); return;}
-
-          const readFields=async item=>{
-            const q=`query($it:ID!){node(id:$it){... on ProjectV2Item{
-              fieldValues(first:50){
-                nodes{
-                  __typename
-                  ... on ProjectV2ItemFieldTextValue   {field{... on ProjectV2FieldCommon{id name}} text}
-                  ... on ProjectV2ItemFieldNumberValue {field{... on ProjectV2FieldCommon{id name}} number}
-                  ... on ProjectV2ItemFieldDateValue   {field{... on ProjectV2FieldCommon{id name}} date}
-                  ... on ProjectV2ItemFieldSingleSelectValue{
-                        field{... on ProjectV2FieldCommon{id name}} name}
-                }}}}`;
-            return (await github.graphql(q,{it:item})).node.fieldValues.nodes;
-          };
-
-          const setField = async (proj,item,field,val) =>{
-            const m=`mutation($p:ID!,$i:ID!,$f:ID!,$v:ProjectV2FieldValue!){
-              updateProjectV2ItemFieldValue(input:{
-                projectId:$p,itemId:$i,fieldId:$f,value:$v}){projectV2Item{id}}}`;
-            await github.graphql(m,{p:proj,i:item,f:field,v:val});
-          };
-
-          //----------------------------------------------------------------
-          // iterate project items
-          //----------------------------------------------------------------
-          for(const it of items){
-            core.startGroup(`📌 ${it.project.title}`);
-            const fNodes=await readFields(it.id);
-            const map={};
-            for(const fn of fNodes){
-              const n=fn.field?.name; if(!n)continue;
-              map[n]={id:fn.field.id,type:fn.__typename,
-                cur: fn.__typename==='ProjectV2ItemFieldTextValue'   ? fn.text   :
-                     fn.__typename==='ProjectV2ItemFieldNumberValue' ? fn.number :
-                     fn.__typename==='ProjectV2ItemFieldDateValue'   ? fn.date   :
-                     fn.__typename==='ProjectV2ItemFieldSingleSelectValue' ? fn.name : ''
-              };
+          const issueNodeId = context.payload.issue.node_id;
+          if (!issueNodeId) {
+            core.notice('⚠️ Cannot update project fields: issue node_id not found.');
+            return;
+          }
+          // Format the current issue creation date (YYYY-MM-DD) for date fields
+          const createdDate = context.payload.issue.created_at.substring(0, 10);
+          // Fetch all project items (if the issue is in multiple projects)
+          const itemsRes = await github.graphql(`query($id: ID!){ 
+            node(id: $id) { ... on Issue { projectItems(first: 50) { nodes { id project { id title } } } } } 
+          }`, { id: issueNodeId });
+          const projectItems = itemsRes.node.projectItems.nodes;
+          if (projectItems.length === 0) {
+            core.notice('ℹ️ Issue is not part of any project – no project fields to update.');
+            return;
+          }
+          for (const item of projectItems) {
+            core.startGroup(`Updating fields in project: ${item.project.title}`);
+            // Retrieve all field values for this project item
+            const fieldsRes = await github.graphql(`query($itemId: ID!){ 
+              node(id: $itemId) { ... on ProjectV2Item { fieldValues(first: 50) { nodes { 
+                __typename
+                ... on ProjectV2ItemFieldTextValue       { field { ... on ProjectV2FieldCommon { id name } } text }
+                ... on ProjectV2ItemFieldNumberValue     { field { ... on ProjectV2FieldCommon { id name } } number }
+                ... on ProjectV2ItemFieldDateValue       { field { ... on ProjectV2FieldCommon { id name } } date }
+                ... on ProjectV2ItemFieldSingleSelectValue { field { ... on ProjectV2FieldCommon { id name } } name }
+              } } } } 
+            }`, { itemId: item.id });
+            const fieldNodes = fieldsRes.node.fieldValues.nodes;
+            // Map field name to its ID and current type
+            const fieldMap = {};
+            for (const f of fieldNodes) {
+              if (f.field?.name) {
+                fieldMap[f.field.name] = { id: f.field.id, type: f.__typename };
+              }
             }
-
-            //------------------------------------------------------------
-            // simple text / number updates (overwrite unconditionally)
-            //------------------------------------------------------------
-            const upd=[
-              ['TestID',           {text:NUM_ID}],
-              ['LabVIEW Version',  {text:LV_VER}],
-              ['LabVIEW Bitness',  {text:LV_BIT}],
-              ['Operating System', {text:OS_USED}],
-              ['Notes',            {text:NOTES}],
-              ['Estimate',         {number:parseFloat(ESTIMATE_MIN||'0')}]
+            // Define desired updates for simple fields (text or number fields)
+            const updates = [
+              ['TestID',            { text: NUM_ID }],
+              ['LabVIEW Version',   { text: LV_VER }],
+              ['LabVIEW Bitness',   { text: LV_BIT }],
+              ['Operating System',  { text: OS_USED }],
+              ['Notes',             { text: NOTES }],
+              ['Estimate',          { number: parseFloat(ESTIMATE_MIN || '0') }]
             ];
-            for(const [name,val] of upd){
-              if(map[name]) await setField(it.project.id,it.id,map[name].id,val);
+            for (const [fieldName, value] of updates) {
+              if (fieldMap[fieldName]) {
+                await github.graphql(`mutation($proj: ID!, $item: ID!, $field: ID!, $val: ProjectV2FieldValue!) {
+                  updateProjectV2ItemFieldValue(input: { projectId: $proj, itemId: $item, fieldId: $field, value: $val }) { projectV2Item { id } }
+                }`, { proj: item.project.id, item: item.id, field: fieldMap[fieldName].id, val: value });
+              }
             }
-
-            //------------------------------------------------------------
-            // Single‑select Test Result
-            //------------------------------------------------------------
-            if(map['Test Result']){
-              const v = map['Test Result'].type==='ProjectV2ItemFieldSingleSelectValue'
-                        ? {singleSelectValue:TEST_RESULT}
-                        : {text:TEST_RESULT};
-              await setField(it.project.id,it.id,map['Test Result'].id,v);
+            // Update Test Result field (single-select or text field)
+            if (fieldMap['Test Result']) {
+              const isSingleSelect = fieldMap['Test Result'].type === 'ProjectV2ItemFieldSingleSelectValue';
+              const resultValue = isSingleSelect 
+                ? { singleSelectValue: TEST_RESULT } 
+                : { text: TEST_RESULT };
+              await github.graphql(`mutation($proj: ID!, $item: ID!, $field: ID!, $val: ProjectV2FieldValue!) {
+                updateProjectV2ItemFieldValue(input: { projectId: $proj, itemId: $item, fieldId: $field, value: $val }) { projectV2Item { id } }
+              }`, { proj: item.project.id, item: item.id, field: fieldMap['Test Result'].id, val: resultValue });
             }
-
-            //------------------------------------------------------------
-            // Date fields – strictly follow new rule
-            //------------------------------------------------------------
-            if(map['End Date'])
-              await setField(it.project.id,it.id,map['End Date'].id,{date:createdDate});
-
-            if(PREV_END && map['Start Date'])
-              await setField(it.project.id,it.id,map['Start Date'].id,{date:PREV_END});
-
+            // Update date fields: End Date = current issue date, Start Date = prev issue's End Date (if available)
+            if (fieldMap['End Date']) {
+              await github.graphql(`mutation($proj: ID!, $item: ID!, $field: ID!, $val: ProjectV2FieldValue!) {
+                updateProjectV2ItemFieldValue(input: { projectId: $proj, itemId: $item, fieldId: $field, value: $val }) { projectV2Item { id } }
+              }`, { proj: item.project.id, item: item.id, field: fieldMap['End Date'].id, val: { date: createdDate } });
+            }
+            if (PREV_END && fieldMap['Start Date']) {
+              await github.graphql(`mutation($proj: ID!, $item: ID!, $field: ID!, $val: ProjectV2FieldValue!) {
+                updateProjectV2ItemFieldValue(input: { projectId: $proj, itemId: $item, fieldId: $field, value: $val }) { projectV2Item { id } }
+              }`, { proj: item.project.id, item: item.id, field: fieldMap['Start Date'].id, val: { date: PREV_END } });
+            }
             core.endGroup();
           }
 
-    - name: ✅ Done
-      run: echo "Workflow finished successfully."
+      - name: Archive test report to JSON log
+        uses: actions/github-script@v6
+        env:
+          FORM_DATA: ${{ steps.parse.outputs.json }}
+        script: |
+          const { owner, repo } = context.repo;
+          const path = 'docs/test_reports.json';
+          // Fetch existing JSON log (if it exists in the repo)
+          let currentData = [];
+          let fileSha;
+          try {
+            const res = await github.rest.repos.getContent({ owner, repo, path });
+            fileSha = res.data.sha;
+            currentData = JSON.parse(Buffer.from(res.data.content, 'base64').toString());
+          } catch (error) {
+            if (error.status !== 404) throw error;
+            // if 404, file doesn't exist yet, we'll create it
+          }
+          const form = JSON.parse(process.env.FORM_DATA);
+          const issueNum = context.payload.issue.number;
+          // Remove any existing entry for this issue
+          currentData = currentData.filter(record => record.issue_number !== issueNum);
+          // Append new record
+          currentData.push({
+            issue_number: issueNum,
+            user_name: form.user_name,
+            test_id: form.test_id,
+            labview_version: form.labview_version,
+            labview_bitness: form.labview_bitness,
+            os_used: form.os_used,
+            test_result: form.test_result,
+            notes: form.notes || '',
+            created_at: context.payload.issue.created_at
+          });
+          // Sort records by issue_number for consistency
+          currentData.sort((a, b) => a.issue_number - b.issue_number);
+          // Update or create the JSON file in the repo
+          const contentEncoded = Buffer.from(JSON.stringify(currentData, null, 2)).toString('base64');
+          await github.rest.repos.createOrUpdateFileContents({
+            owner, repo, path,
+            message: `Update test_reports.json for issue #${issueNum}`,
+            content: contentEncoded,
+            sha: fileSha
+          });
+
+      - name: Auto-assign issue to reporter
+        uses: kentaro-m/auto-assign-action@v2.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          assignees: "author"
+
+      - name: ✅ Done
+        run: echo "Manual test processing workflow completed successfully."
