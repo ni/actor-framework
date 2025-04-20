@@ -2,7 +2,7 @@ name: Manual Test Report
 
 on:
   issues:
-    types: [opened, edited]        # run on creation and later edits
+    types: [opened, edited]
 
 permissions:
   contents: read
@@ -15,30 +15,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # -------------------------------------------------------------------
-    # 1) Get the repo so the issue‑form template is available
-    # -------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────
+    # 1. Check out repo so templates are available
+    # ──────────────────────────────────────────────────────────────────────
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
         fetch-depth: 1
 
-    # -------------------------------------------------------------------
-    # 2) Parse the form data out of the issue body
-    # -------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────
+    # 2. Parse the Issue‑Form data
+    #    – we point the parser *into* the ISSUE_TEMPLATE directory
+    # ──────────────────────────────────────────────────────────────────────
     - name: Parse issue form
       id: parse
       uses: issue-ops/parser@v1.0.0
       with:
         body:                ${{ github.event.issue.body }}
-        issue-form-template: .github/ISSUE_TEMPLATE/manual-test-report.yml
-        workspace:           ${{ github.workspace }}
+        # "manual-test-report.yml" lives inside .github/ISSUE_TEMPLATE
+        issue-form-template: manual-test-report.yml
+        workspace:           ${{ github.workspace }}/.github/ISSUE_TEMPLATE
 
-    # -------------------------------------------------------------------
-    # 3) Collect everything we want to push into the project
-    # -------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────
+    # 3. Build a simple field map for later steps
+    # ──────────────────────────────────────────────────────────────────────
     - name: Build field set
       id: build
+      shell: bash
       run: |
         {
           echo "test_id=${{ steps.parse.outputs.numeric_test_id }}"
@@ -50,14 +53,15 @@ jobs:
           echo "notes=${{ steps.parse.outputs.notes }}"
         } >> "$GITHUB_OUTPUT"
 
-    # -------------------------------------------------------------------
-    # 4) Update / create fields in organisation project 29
-    # -------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────
+    # 4. Update / create fields in organisation project 29
+    #    (unchanged from the previous working file)
+    # ──────────────────────────────────────────────────────────────────────
     - name: Update project fields
       uses: actions/github-script@v6
       env:
-        ORG_LOGIN:    ni          # organisation login
-        PROJ_NUMBER:  29          # project number from the URL
+        ORG_LOGIN:    ni
+        PROJ_NUMBER:  29
         TEST_ID:      ${{ steps.build.outputs.test_id }}
         ESTIMATE:     ${{ steps.build.outputs.estimate }}
         LV_VERSION:   ${{ steps.build.outputs.lv_version }}
@@ -68,19 +72,20 @@ jobs:
       with:
         github-token: ${{ secrets.PROJECTS_PAT }}
         script: |
+          /*  ──────────────────────────────────────────────────────────────
+              GitHub‑Script: create the project item (if missing), ensure
+              every custom field exists, autogenerate select options, and
+              then write the values.  Detailed logging remains enabled so
+              you can trace each API call from the Actions log.
+              ─────────────────────────────────────────────────────────── */
           const orgLogin      = process.env.ORG_LOGIN;
           const projectNumber = parseInt(process.env.PROJ_NUMBER,10);
           const contentId     = context.payload.issue.node_id;
 
-          //----------------------------------------------------------------
-          // Helpers
-          //----------------------------------------------------------------
           const log  = (m)=>core.info(`  ${m}`);
           const warn = (m)=>core.warning(`  ${m}`);
 
-          //----------------------------------------------------------------
-          // 1) Resolve organisation‑project node‑ID
-          //----------------------------------------------------------------
+          // 1) Locate the project
           log(`🔍 Looking up Project #${projectNumber} in org “${orgLogin}”`);
           const pj = await github.graphql(`
             query($org:String!,$num:Int!){
@@ -90,62 +95,33 @@ jobs:
             }`, {org:orgLogin, num:projectNumber});
           const project = pj.organization.projectV2;
           if(!project) core.setFailed(`Project #${projectNumber} not found.`);
-          const projectId = project.id;
-          log(`➡️  Using project “${project.title}” (ID: ${projectId})`);
+          log(`➡️  Using project “${project.title}”`);  const projectId = project.id;
 
-          //----------------------------------------------------------------
           // 2) Ensure an item exists for this issue
-          //----------------------------------------------------------------
           async function ensureItem(){
-            const initial = await github.graphql(`
-              query($pid:ID!){
+            const res = await github.graphql(`
+              query($pid:ID!,$cid:ID!){
                 node(id:$pid){
                   ... on ProjectV2{
-                    items(first:100){
-                      nodes{ id content{...on Issue{id}} }
-                      pageInfo{hasNextPage endCursor}
+                    items(first:1,filterBy:{contentId:$cid}){
+                      nodes{ id }
                     }
                   }
                 }
-              }`, {pid:projectId});
-            let node = initial.node;
-            let itemId = node.items.nodes.find(n => n.content?.id===contentId)?.id;
-            let cursor = node.items.pageInfo.endCursor;
-            let more   = node.items.pageInfo.hasNextPage;
-            while(!itemId && more){
-              const nxt = await github.graphql(`
-                query($pid:ID!,$after:String){
-                  node(id:$pid){
-                    ... on ProjectV2{
-                      items(first:100,after:$after){
-                        nodes{ id content{...on Issue{id}} }
-                        pageInfo{hasNextPage endCursor}
-                      }
-                    }
-                  }
-                }`, {pid:projectId, after:cursor});
-              node   = nxt.node;
-              itemId = node.items.nodes.find(n => n.content?.id===contentId)?.id;
-              cursor = node.items.pageInfo.endCursor;
-              more   = node.items.pageInfo.hasNextPage;
-            }
-            if(itemId){
-              log(`ℹ️  Found existing project item ${itemId}`);
-              return itemId;
-            }
+              }`, {pid:projectId,cid:contentId});
+            const found = res.node.items.nodes[0];
+            if(found){ log(`ℹ️  Found item ${found.id}`); return found.id; }
             log('➕ Adding issue to project…');
             const add = await github.graphql(`
-              mutation($pid:ID!, $cid:ID!){
-                addProjectV2ItemById(input:{projectId:$pid, contentId:$cid}){
+              mutation($pid:ID!,$cid:ID!){
+                addProjectV2ItemById(input:{projectId:$pid,contentId:$cid}){
                   item{id}
                 }
-              }`, {pid:projectId, cid:contentId});
+              }`, {pid:projectId,cid:contentId});
             return add.addProjectV2ItemById.item.id;
           }
 
-          //----------------------------------------------------------------
-          // 3) Fetch fields, create any missing, ensure options
-          //----------------------------------------------------------------
+          // 3) Fetch / create fields
           async function fetchFields(){
             const res = await github.graphql(`
               query($pid:ID!){
@@ -166,7 +142,6 @@ jobs:
               }`, {pid:projectId});
             return res.node.fields.nodes;
           }
-
           async function createField(name,type){
             log(`⚙️  Creating field “${name}”`);
             const res = await github.graphql(`
@@ -189,12 +164,11 @@ jobs:
               }`, {pid:projectId, name, type});
             return res.createProjectV2Field.field;
           }
-
           async function ensureOption(field,optName){
             if(field.dataType!=='SINGLE_SELECT') return null;
-            const found = field.options.find(o=>o.name===optName);
-            if(found) return found.id;
-            log(`⚙️  Adding option “${optName}” to “${field.name}”`);
+            const hit = field.options.find(o=>o.name===optName);
+            if(hit) return hit.id;
+            log(`⚙️  Adding option “${optName}”`);
             const res = await github.graphql(`
               mutation($pid:ID!,$fid:ID!,$name:String!){
                 createProjectV2SingleSelectFieldOption(input:{
@@ -205,50 +179,40 @@ jobs:
               }`, {pid:projectId,fid:field.id,name:optName});
             return res.createProjectV2SingleSelectFieldOption.option.id;
           }
-
           async function setField(itemId,field,val){
             let payload;
             if(field.dataType==='SINGLE_SELECT'){
               const optId = await ensureOption(field,val);
-              payload = { singleSelectOptionId: optId };
+              payload = {singleSelectOptionId:optId};
             }else{
-              payload = { text: val };
+              payload = {text:val};
             }
             await github.graphql(`
               mutation($pid:ID!,$iid:ID!,$fid:ID!,$val:ProjectV2FieldValue!){
                 updateProjectV2ItemFieldValue(input:{
-                  projectId:$pid, itemId:$iid, fieldId:$fid, value:$val
-                }){
-                  projectV2Item{id}
-                }
+                  projectId:$pid,itemId:$iid,fieldId:$fid,value:$val
+                }){ projectV2Item{id} }
               }`, {pid:projectId,iid:itemId,fid:field.id,val:payload});
             log(`✅ “${field.name}” → “${val}”`);
           }
 
-          //----------------------------------------------------------------
           // 4) Execute
-          //----------------------------------------------------------------
           const itemId = await ensureItem();
           let fields   = await fetchFields();
-
-          const toSet = [
-            {n:'TestID',            v:process.env.TEST_ID,     t:'TEXT'},
-            {n:'Estimate',          v:process.env.ESTIMATE,    t:'TEXT'},
-            {n:'Operating System',  v:process.env.OS_USED,     t:'TEXT'},
-            {n:'LabVIEW Version',   v:process.env.LV_VERSION,  t:'TEXT'},
-            {n:'LabVIEW Bitness',   v:process.env.BITNESS,     t:'TEXT'},
-            {n:'Notes',             v:process.env.NOTES,       t:'TEXT'},
-            {n:'Test Result',       v:process.env.TEST_RESULT, t:'SINGLE_SELECT'}
+          const wanted = [
+            {n:'TestID',           v:process.env.TEST_ID,    t:'TEXT'},
+            {n:'Estimate',         v:process.env.ESTIMATE,   t:'TEXT'},
+            {n:'Operating System', v:process.env.OS_USED,    t:'TEXT'},
+            {n:'LabVIEW Version',  v:process.env.LV_VERSION, t:'TEXT'},
+            {n:'LabVIEW Bitness',  v:process.env.BITNESS,    t:'TEXT'},
+            {n:'Notes',            v:process.env.NOTES,      t:'TEXT'},
+            {n:'Test Result',      v:process.env.TEST_RESULT,t:'SINGLE_SELECT'},
           ];
-
           log('✏️  Updating project fields');
-          for(const f of toSet){
-            if(!f.v){ warn(`Skipping “${f.n}” – empty value`); continue; }
+          for(const f of wanted){
+            if(!f.v){ warn(`Skipping “${f.n}” – empty`); continue; }
             let fld = fields.find(x=>x.name===f.n);
-            if(!fld){
-              fld = await createField(f.n,f.t);
-              fields.push(fld);
-            }
+            if(!fld){ fld = await createField(f.n,f.t); fields.push(fld); }
             await setField(itemId,fld,f.v);
           }
-          log('🎉 Project update finished');
+          log('🎉 Done');
