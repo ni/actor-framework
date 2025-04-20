@@ -1,37 +1,47 @@
 name: "Manual Test Report"
-description: "Select a test case and report the result after execution."
+description: "Select a test case, execute it, and report the result."
 title: "[Manual Test] {{ test_id }} by {{ user_name }}"
 labels: ["manual-test"]
 assignees: []
 
 body:
+  #────────────────────────────────────────────────────────────────────
+  #  WHO IS REPORTING
+  #────────────────────────────────────────────────────────────────────
   - type: input
     id: user_name
     attributes:
       label: "👤 Your GitHub username"
       description: "Enter your GitHub username."
-      placeholder: "e.g. @svelderrainruiz"
+      placeholder: "e.g. @octocat"
     validations:
       required: true
 
+  #────────────────────────────────────────────────────────────────────
+  #  WHICH TEST DID YOU RUN?
+  #    • Values must match the “Title” column in the reference table
+  #────────────────────────────────────────────────────────────────────
   - type: dropdown
     id: test_id
     attributes:
       label: "🧪 Select a Test"
-      description: "Choose the test alias you executed. Review test instructions using the link in the table below."
+      description: "Choose the test you executed (see reference table below)."
       options:
-        - "Actor_Creation"
-        - "Creating_a_Standard_Message"
-        - "Creating_Abstract_and_Concrete_Messages"
-        - "Creating_Multiple_Messages_for_Actors"
-        - "Verify_that_Project_Provider_Features_are_not_Available_when_an_Actor-s_Library_is_Loaded_Directly"
-        - "REQUIRES_RT-_Testing_on_RT_Targets"
-        - "PPL_Support"
-        - "Create_new_instance_of_-Feedback_Evaporative_Cooler-_project"
-        - "Create_new_instance_of_-Actor_Framework-_project"
+        - "Actor Creation"
+        - "Creating a Standard Message"
+        - "Creating Abstract and Concrete Messages"
+        - "Creating Multiple Messages for Actors"
+        - "Project Provider Features not Available"
+        - "REQUIRES RT - Testing on RT Targets"
+        - "PPL Support"
+        - "Create new 'Feedback Evaporative Cooler' project"
+        - "Create new 'Actor Framework' project"
     validations:
       required: true
 
+  #────────────────────────────────────────────────────────────────────
+  #  ENVIRONMENT DETAILS
+  #────────────────────────────────────────────────────────────────────
   - type: dropdown
     id: labview_version
     attributes:
@@ -53,7 +63,7 @@ body:
     id: labview_bitness
     attributes:
       label: "💻 LabVIEW Bitness"
-      description: "Choose whether you ran the test in 32-bit or 64-bit LabVIEW."
+      description: "Choose whether you ran the test in 32‑bit or 64‑bit LabVIEW."
       options:
         - "32-bit"
         - "64-bit"
@@ -72,6 +82,10 @@ body:
     validations:
       required: true
 
+  #────────────────────────────────────────────────────────────────────
+  #  REFERENCE – scraped by the workflow for the Estimate field
+  #  • Do NOT change the vertical‑bar alignment; it makes parsing easy
+  #────────────────────────────────────────────────────────────────────
   - type: markdown
     attributes:
       value: |
@@ -89,6 +103,9 @@ body:
         | Create new 'Feedback Evaporative Cooler' project               | *10 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713431.md) |
         | Create new 'Actor Framework' project                           | *10 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713432.md) |
 
+  #────────────────────────────────────────────────────────────────────
+  #  RESULT
+  #────────────────────────────────────────────────────────────────────
   - type: dropdown
     id: test_result
     attributes:
