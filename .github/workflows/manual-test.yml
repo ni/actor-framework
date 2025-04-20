@@ -1,18 +1,28 @@
 name: Manual Test Processor
 
 on:
+  # Fire automatically on issue events you care about…
   issues:
-    types: [opened, edited]
+    types: [opened, edited, reopened]
+  # …and let maintainers re‑run it on demand.
+  workflow_dispatch:
 
 jobs:
   process-manual-test:
-    if: github.event.issue.title == 'Manual Test'
+    # ──────────────────────────────────────────────────────────────────
+    # ‼️  If you still want *some* filter, uncomment ONE of these lines.
+    #     contains() is case‑sensitive; tolower() if you need otherwise.
+    #
+    if: contains(github.event.issue.labels.*.name, 'manual-test')
+    # if: startsWith(github.event.issue.title, '[Manual Test]')
+    # ──────────────────────────────────────────────────────────────────
     runs-on: ubuntu-24.04
     permissions:
-      contents: read          # checkout
-      issues:   write         # comment / label if you ever need it
+      contents: read
+      issues:   write            # needed by issue‑ops/parser & project updates
+
     steps:
-    # ────────────────────────────────────────────────────────────────────
+    # —‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑‑
     - name: ⬇️  Checkout
       uses: actions/checkout@v3
 
@@ -25,7 +35,7 @@ jobs:
         issue-form-template: manual-test-report.yml
         workspace:          ${{ github.workspace }}
 
-    # Promote parsed keys to env so subsequent steps can read them
+    # Promote parsed values to environment variables
     - name: 🔧 Map parsed values to env
       run: |
         echo "TEST_ID=${{ steps.parse.outputs.test_id }}"                       >> $GITHUB_ENV
@@ -36,12 +46,12 @@ jobs:
         echo "TEST_RESULT=${{ steps.parse.outputs.test_result }}"               >> $GITHUB_ENV
         echo "NOTES=${{ steps.parse.outputs.notes_or_screenshots_optional }}"   >> $GITHUB_ENV
 
-    # ────────────────────────────────────────────────────────────────────
+    # Update / create project‑item and its custom fields
     - name: 🗂️  Update project fields
       uses: actions/github-script@v6
       env:
-        ORG_LOGIN:   ni              # organisation login
-        PROJ_NUMBER: 29              # project number (from https://github.com/orgs/ni/projects/29)
+        ORG_LOGIN:   ni
+        PROJ_NUMBER: 29                          # https://github.com/orgs/ni/projects/29
         TEST_ID:     ${{ env.TEST_ID }}
         ESTIMATE:    ${{ env.ESTIMATE }}
         LV_VERSION:  ${{ env.LV_VERSION }}
@@ -50,34 +60,34 @@ jobs:
         TEST_RESULT: ${{ env.TEST_RESULT }}
         NOTES:       ${{ env.NOTES }}
       with:
-        github-token: ${{ secrets.PROJECTS_PAT }}   # PAT with project scope
+        github-token: ${{ secrets.PROJECTS_PAT }}   # PAT with “project” scope
         script: |
-          /* ──────────────────────────────────────────────────────────────
-             GitHub‑Script: add the issue to the org project (if missing),
-             ensure all custom fields & options exist, then populate them.
-             Rich log output is kept for troubleshooting.
-             ─────────────────────────────────────────────────────────── */
-          const orgLogin      = process.env.ORG_LOGIN;
+          /*  ───────────────────────────────────────────────────────────
+              See previous message for full commentary; logic unchanged.
+              This block finds/creates the project item, ensures every
+              custom field & option exists, and writes the values.
+              ────────────────────────────────────────────────────────── */
+          const orgLogin = process.env.ORG_LOGIN;
           const projectNumber = Number(process.env.PROJ_NUMBER);
-          const contentId     = context.payload.issue.node_id;
+          const contentId = context.payload.issue.node_id;
 
-          const log  = (m)=>core.info(`  ${m}`);
-          const warn = (m)=>core.warning(`  ${m}`);
+          const log  = (m) => core.info(`  ${m}`);
+          const warn = (m) => core.warning(`  ${m}`);
 
-          // ── 1. Locate the project ────────────────────────────────────
+          // 1. Locate the project
           log(`🔍 Looking up Project #${projectNumber} in org “${orgLogin}”`);
           const pjRes = await github.graphql(`
             query ($org:String!,$num:Int!){
               organization(login:$org){
                 projectV2(number:$num){ id title }
               }
-            }`, { org:orgLogin, num:projectNumber });
+            }`, {org: orgLogin, num: projectNumber});
           const project = pjRes.organization.projectV2;
           if (!project) core.setFailed(`❌ Project #${projectNumber} not found`);
           log(`➡️  Using project “${project.title}”`);
           const projectId = project.id;
 
-          // ── 2. Ensure a project‑item exists for this issue ───────────
+          // 2. Ensure an item exists for this issue
           async function ensureItem(){
             const r = await github.graphql(`
               query ($pid:ID!){
@@ -91,9 +101,9 @@ jobs:
                     }
                   }
                 }
-              }`, { pid:projectId });
+              }`, {pid: projectId});
             const hit = r.node.items.nodes.find(n => n.content?.id === contentId);
-            if (hit){ log(`ℹ️  Found project item ${hit.id}`); return hit.id; }
+            if (hit){ log(`ℹ️  Found item ${hit.id}`); return hit.id; }
 
             log('➕ Adding issue to project…');
             const add = await github.graphql(`
@@ -101,11 +111,11 @@ jobs:
                 addProjectV2ItemById(input:{ projectId:$pid, contentId:$cid }){
                   item{ id }
                 }
-              }`, { pid:projectId, cid:contentId });
+              }`, {pid: projectId, cid: contentId});
             return add.addProjectV2ItemById.item.id;
           }
 
-          // ── 3. Fetch (or lazily create) field configurations ─────────
+          // 3. Fetch or create fields (object‑level fragments only)
           async function fetchFields(){
             const r = await github.graphql(`
               query ($pid:ID!){
@@ -125,7 +135,7 @@ jobs:
                     }
                   }
                 }
-              }`, { pid:projectId });
+              }`, {pid: projectId});
             return r.node.fields.nodes;
           }
 
@@ -144,7 +154,7 @@ jobs:
                     ... on ProjectV2SingleSelectField { options{ id name } }
                   }
                 }
-              }`, { pid:projectId, name, type });
+              }`, {pid: projectId, name, type});
             return r.createProjectV2Field.field;
           }
 
@@ -158,7 +168,7 @@ jobs:
                 createProjectV2SingleSelectFieldOption(input:{
                   projectId:$pid, fieldId:$fid, name:$name
                 }){ option{ id } }
-              }`, { pid:projectId, fid:field.id, name:optName });
+              }`, {pid: projectId, fid: field.id, name: optName});
             return r.createProjectV2SingleSelectFieldOption.option.id;
           }
 
@@ -173,13 +183,13 @@ jobs:
             await github.graphql(`
               mutation ($pid:ID!,$iid:ID!,$fid:ID!,$val:ProjectV2FieldValue!){
                 updateProjectV2ItemFieldValue(input:{
-                  projectId:$pid, itemId:$iid, fieldId:$fid, value:$val
+                  projectId:$pid,itemId:$iid,fieldId:$fid,value:$val
                 }){ projectV2Item{ id } }
-              }`, { pid:projectId, iid:itemId, fid:field.id, val:payload });
+              }`, {pid: projectId, iid: itemId, fid: field.id, val: payload});
             log(`✅ “${field.name}” → “${val}”`);
           }
 
-          // ── 4. Orchestrate ───────────────────────────────────────────
+          // 4. Orchestrate updates
           const itemId = await ensureItem();
           let fields   = await fetchFields();
 
