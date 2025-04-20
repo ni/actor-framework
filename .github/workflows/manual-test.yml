@@ -21,6 +21,8 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
 
+
+
     # ------------------------------------------------
     # 2. Parse the issue body into JSON
     # ------------------------------------------------
@@ -31,6 +33,8 @@ jobs:
         body: ${{ github.event.issue.body }}
         issue-form-template: manual-test-report.yml
         workspace: ${{ github.workspace }}
+
+
 
     # ------------------------------------------------
     # 3. Build field set – read the markdown table and extract ID & estimate
@@ -109,64 +113,13 @@ jobs:
           core.setOutput('test_result',     testResult);
           core.setOutput('notes',           notes);
 
-          core.info(`Parsed table row → ID=${numeric}, Est=${estimate}`);
-
       env:
         FORM_JSON: ${{ steps.parse.outputs.json }}
 
-    # ------------------------------------------------
-    # 4. Get previous test’s end date (if any)
-    # ------------------------------------------------
-    - name: Get previous test's end date
-      id: prev
-      uses: actions/github-script@v6
-      with:
-        github-token: ${{ secrets.PROJECTS_PAT }}
-        script: |
-          const {owner,repo} = context.repo;
-          const cur     = parseInt(context.issue.number,10);
-          const author  = context.payload.issue.user.login;
-          const query   = `repo:${owner}/${repo} label:manual-test author:${author} in:title "[Manual Test]" sort:created-desc`;
 
-          const res = await github.graphql(`
-            query($q:String!){
-              search(query:$q,type:ISSUE,first:10){
-                nodes{
-                  ... on Issue{
-                    number
-                    projectItems(first:50){
-                      nodes{
-                        fieldValues(first:50){
-                          nodes{
-                            __typename
-                            ... on ProjectV2ItemFieldDateValue{
-                              date
-                              field{ ... on ProjectV2FieldCommon{ name } }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }`, {q: query});
-
-          let prevEnd='';
-          for (const n of res.search.nodes){
-            if (n.number === cur) continue;
-            for (const fv of n.projectItems.nodes.flatMap(it=>it.fieldValues.nodes)){
-              if (fv.field?.name === 'End Date' && fv.date){
-                prevEnd = fv.date; break;
-              }
-            }
-            if (prevEnd) break;
-          }
-          core.setOutput('prev_end', prevEnd);
-          core.info(prevEnd ? `Previous End Date: ${prevEnd}` : 'No previous End Date');
 
     # ------------------------------------------------
-    # 5. Update the repository project fields
+    # 4. Update the repository project fields
     # ------------------------------------------------
     - name: Update project fields
       uses: actions/github-script@v6
@@ -175,7 +128,6 @@ jobs:
         script: |
           const {owner,repo} = context.repo;
           const issueNode    = context.payload.issue.node_id;
-          const createdDate  = context.payload.issue.created_at.substring(0,19)+'Z';
 
           // ---------- get existing project items ----------
           const q = await github.graphql(`
@@ -231,10 +183,6 @@ jobs:
                           text
                           field{ ... on ProjectV2FieldCommon{ id name } }
                         }
-                        ... on ProjectV2ItemFieldDateValue{
-                          date
-                          field{ ... on ProjectV2FieldCommon{ id name } }
-                        }
                         ... on ProjectV2ItemFieldSingleSelectValue{
                           id
                           name
@@ -248,25 +196,13 @@ jobs:
 
             const map = {};
             for (const n of fv.node.fieldValues.nodes){
-              // ---------- FIX: skip nodes without a field object ----------
+              // skip malformed nodes
               if (!n.field || !n.field.name) continue;
               map[n.field.name] = {
                 fieldId : n.field.id,
                 type    : n.__typename,
                 node    : n
               };
-            }
-
-            // End Date (write once)
-            if (map['End Date'] && !map['End Date'].node.date){
-              await setField(it.project.id, it.id, map['End Date'].fieldId,
-                             {date: createdDate});
-            }
-
-            // Start Date (every run if prev exists)
-            if (process.env.PREV && map['Start Date']){
-              await setField(it.project.id, it.id, map['Start Date'].fieldId,
-                             {date: process.env.PREV});
             }
 
             // plain text fields
@@ -297,4 +233,3 @@ jobs:
         LV:     ${{ steps.build.outputs.labview_version }}
         BIT:    ${{ steps.build.outputs.labview_bitness }}
         NOTES:  ${{ steps.build.outputs.notes }}
-        PREV:   ${{ steps.prev.outputs.prev_end }}
