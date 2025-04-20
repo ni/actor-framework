@@ -1,28 +1,29 @@
-name: process-manual-test
+name: Manual Test Handler
 
 on:
   issues:
-    types:
-      - opened
-      - edited
-      - labeled
+    types: [opened, reopened, edited]
 
 permissions:
-  issues: write
   contents: read
+  issues: write
   pull-requests: write
-  repository-projects: write
 
 jobs:
   process-manual-test:
-    name: process-manual-test
-    runs-on: ubuntu-24.04
+    if: contains(github.event.issue.labels.*.name, 'manual-test')
+    runs-on: ubuntu-latest
+    env:
+      # Personal Access Token with "repo" + "project" scopes
+      PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
 
     steps:
-      - name: Checkout
+      # --------------------------------------------------
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Parse form
+      # --------------------------------------------------
+      - name: Parse manual‑test issue form
         id: parse
         uses: issue-ops/parser@v1.0.0
         with:
@@ -30,12 +31,24 @@ jobs:
           issue-form-template: manual-test-report.yml
           workspace: ${{ github.workspace }}
 
-      - name: Detect previous project end date
+      # --------------------------------------------------
+      - name: Export parser outputs to ENV
+        run: |
+          echo "NUMID=${{ steps.parse.outputs.numeric_test_id }}" >> $GITHUB_ENV
+          echo "EST=${{ steps.parse.outputs.estimate_text }}"       >> $GITHUB_ENV
+          echo "LV=${{ steps.parse.outputs.labview_version }}"       >> $GITHUB_ENV
+          echo "BIT=${{ steps.parse.outputs.labview_bitness }}"      >> $GITHUB_ENV
+          echo "OS=${{ steps.parse.outputs.os_used }}"              >> $GITHUB_ENV
+          echo "RESULT=${{ steps.parse.outputs.test_result }}"       >> $GITHUB_ENV
+          echo "NOTES=${{ steps.parse.outputs.notes }}"              >> $GITHUB_ENV
+          echo "CUR_NUMBER=${{ github.event.issue.number }}"         >> $GITHUB_ENV
+
+      # --------------------------------------------------
+      - name: Get previous test's end date
         id: prev
         uses: actions/github-script@v6
-        env:
-          CUR_NUMBER: ${{ github.event.issue.number }}
         with:
+          github-token: ${{ env.PROJECTS_TOKEN }}
           script: |
             const {owner,repo} = context.repo;
             const cur     = parseInt(process.env.CUR_NUMBER,10);
@@ -69,28 +82,20 @@ jobs:
             let prevEnd='';
             for (const n of res.search.nodes){
               if (n.number === cur) continue;
-              for (const fv of n.projectItems.nodes.flatMap(it=>it.fieldValues.nodes)){
-                if (fv.field?.name === 'End Date' && fv.date){
-                  prevEnd = fv.date; break;
-                }
+              for (const fv of n.projectItems.nodes.flatMap(i=>i.fieldValues.nodes)){
+                if (fv.field?.name === 'End Date' && fv.date){ prevEnd = fv.date; break; }
               }
               if (prevEnd) break;
             }
             core.setOutput('prev_end', prevEnd);
-            core.info(prevEnd ? `Previous End Date: ${prevEnd}` : 'No previous End Date');
-
-      - name: Validate & update project-item
-        id: update
-        uses: actions/github-script@v6
         env:
-          NUMID: ${{ steps.parse.outputs.numeric_test_id }}
-          EST: ${{ steps.parse.outputs.estimate_text }}
-          OS: ${{ steps.parse.outputs.os_used }}
-          LV: ${{ steps.parse.outputs.labview_version }}
-          BIT: ${{ steps.parse.outputs.labview_bitness }}
-          NOTES: ${{ steps.parse.outputs.notes }}
-          PREV: ${{ steps.prev.outputs.prev_end }}
+          CUR_NUMBER: ${{ env.CUR_NUMBER }}
+
+      # --------------------------------------------------
+      - name: Update project item fields
+        uses: actions/github-script@v6
         with:
+          github-token: ${{ env.PROJECTS_TOKEN }}
           script: |
             const {owner,repo} = context.repo;
             const issueNode    = context.payload.issue.node_id;
@@ -167,9 +172,6 @@ jobs:
 
               const map = {};
               for (const n of fv.node.fieldValues.nodes){
-                // QUICK PATCH: skip nodes lacking a `field` object
-                if (!n.field || !n.field.name) continue;
-
                 map[n.field.name] = {
                   fieldId : n.field.id,
                   type    : n.__typename,
@@ -189,7 +191,7 @@ jobs:
                                {date: process.env.PREV});
               }
 
-              // plain text fields
+              // plain‑text fields
               const textPairs = [
                 ['TestID',            process.env.NUMID],
                 ['Estimate',          process.env.EST],
@@ -198,7 +200,7 @@ jobs:
                 ['LabVIEW Bitness',   process.env.BIT],
                 ['Notes',             process.env.NOTES]
               ];
-              for (const [fname, val] of textPairs){
+              for (const [fname,val] of textPairs){
                 if (map[fname])
                   await setField(it.project.id, it.id, map[fname].fieldId, {text: val});
               }
@@ -210,3 +212,18 @@ jobs:
                 });
               }
             }
+        env:
+          NUMID: ${{ env.NUMID }}
+          EST:   ${{ env.EST }}
+          LV:    ${{ env.LV }}
+          BIT:   ${{ env.BIT }}
+          OS:    ${{ env.OS }}
+          NOTES: ${{ env.NOTES }}
+          PREV:  ${{ steps.prev.outputs.prev_end }}
+
+      # --------------------------------------------------
+      - name: Auto‑assign reviewers
+        if: always()
+        uses: kentaro-m/auto-assign-action@v2.0.0
+        with:
+          configuration-path: .github/auto_assign.yml
