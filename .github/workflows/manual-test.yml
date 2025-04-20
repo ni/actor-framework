@@ -37,7 +37,6 @@ jobs:
         with:
           script: |
             const form = JSON.parse(process.env.FORM_JSON);
-            const core = require('@actions/core');
             const required = ['test_id','labview_version','labview_bitness','os_used','test_result'];
             for (const f of required) {
               if (!form[f] || String(form[f]).trim() === '') {
@@ -126,7 +125,6 @@ jobs:
           PREV:    ${{ steps.previous.outputs.prev_end }}
         with:
           script: |
-            const core = require('@actions/core');
             const {owner,repo} = context.repo;
             const issueNode = context.payload.issue.node_id;
             const created = context.payload.issue.created_at.substring(0,19)+'Z';
