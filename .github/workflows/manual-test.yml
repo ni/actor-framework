@@ -1,5 +1,15 @@
 name: Manual‑Test Issue Processing
 
+# --------------------------------------------------
+#  ➜ grant the GITHUB_TOKEN access to Projects V2  ⬅
+# --------------------------------------------------
+permissions:
+  contents:            read           # checkout
+  issues:              write          # comment / label
+  pull-requests:       write
+  projects:            write          # ←‑‑ new, lets GraphQL use Projects V2
+  repository-projects: write          # (older token name, harmless to keep)
+
 on:
   issues:
     types: [opened, edited, labeled]
@@ -120,7 +130,6 @@ jobs:
 
     # ------------------------------------------------------------------
     # 5) Locate the author’s previous manual‑test issue to get End Date
-    #    -------- (GraphQL union fragment fixed here) -------------------
     # ------------------------------------------------------------------
     - name: Locate previous issue by same author
       id: previous
@@ -147,9 +156,7 @@ jobs:
                             __typename
                             ... on ProjectV2ItemFieldDateValue{
                               date
-                              field{
-                                ... on ProjectV2FieldCommon{ name }
-                              }
+                              field{ ... on ProjectV2FieldCommon{ name } }
                             }
                           }
                         }
@@ -175,7 +182,6 @@ jobs:
 
     # ------------------------------------------------------------------
     # 6) Ensure the issue has a Project V2 item & update all fields
-    #    -------- (GraphQL union fragment fixed here) -------------------
     # ------------------------------------------------------------------
     - name: Create / update project fields
       uses: actions/github-script@v6
@@ -272,13 +278,13 @@ jobs:
               };
             }
 
-            // End Date (write once)
+            // End Date (write once)
             if (map['End Date'] && !map['End Date'].node.date){
               await setField(it.project.id, it.id, map['End Date'].fieldId,
                              {date: createdDate});
             }
 
-            // Start Date (every run if prev exists)
+            // Start Date (every run if prev exists)
             if (process.env.PREV && map['Start Date']){
               await setField(it.project.id, it.id, map['Start Date'].fieldId,
                              {date: process.env.PREV});
@@ -301,7 +307,7 @@ jobs:
             // Test Result (single‑select)
             if (map['Test Result'] && map['Test Result'].type === 'ProjectV2ItemFieldSingleSelectValue'){
               await setField(it.project.id, it.id, map['Test Result'].fieldId, {
-                singleSelectOptionId: map['Test Result'].node.id   // option’s node ID
+                singleSelectOptionId: map['Test Result'].node.id
               });
             }
           }
@@ -326,7 +332,7 @@ jobs:
             sha  = res.data.sha;
             data = JSON.parse(Buffer.from(res.data.content,'base64').toString());
           }catch(e){
-            if (e.status !== 404) throw e;  // ignore file‑not‑found
+            if (e.status !== 404) throw e;        // ignore file‑not‑found
           }
 
           const issueNum = context.payload.issue.number;
