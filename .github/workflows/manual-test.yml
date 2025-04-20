@@ -1,14 +1,14 @@
 name: Manual‑Test Issue Processing
 
 # --------------------------------------------------
-#  ➜ grant the GITHUB_TOKEN access to Projects V2  ⬅
+#  ➜ grant the GITHUB_TOKEN access to repo Projects  ⬅
 # --------------------------------------------------
 permissions:
   contents:            read           # checkout
   issues:              write          # comment / label
   pull-requests:       write
-  projects:            write          # ←‑‑ new, lets GraphQL use Projects V2
-  repository-projects: write          # (older token name, harmless to keep)
+  repository-projects: write          # allows GraphQL Projects V2 mutations
+  security-events:     write          # (kept from original; harmless)
 
 on:
   issues:
