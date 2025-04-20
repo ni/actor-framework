@@ -15,9 +15,9 @@ jobs:
     #-------------------------------------------------------------
 
     permissions:
-      contents:          read   # checkout / metadata
-      issues:            write  # we comment / label
-      pull-requests:     write  # auto‑assign step
+      contents: read            # checkout / metadata
+      issues: write             # we comment / label
+      pull-requests: write      # auto‑assign step
       repository-projects: write # still required by the API, harmless with PAT
 
     steps:
@@ -27,7 +27,7 @@ jobs:
 
       # 2. parse the issue‑form body into JSON (issue‑ops/parser action)
       - name: Parse issue‑form body
-        id: parse
+        id: parse                     # <-- «id: parse» required for later references
         uses: issue-ops/parser@v1.0.0
         with:
           body: ${{ github.event.issue.body }}
@@ -111,7 +111,8 @@ jobs:
 
             core.info(`Parsed table row → ID=${numeric}, Est=${estimate}`);
         env:
-          FORM_JSON: ${{ steps.parse.outputs.form_json }}
+          # Use the correct output name from the parser action
+          FORM_JSON: ${{ steps.parse.outputs.json }}
 
       # 4. locate the previous manual‑test issue from the same author
       - name: Locate previous manual‑test issue
