@@ -116,26 +116,29 @@ jobs:
           }
 
           // 3. Fetch or create fields (object‑level fragments only)
-          async function fetchFields(){
+          async function fetchFields () {
             const r = await github.graphql(`
-              query ($pid:ID!){
-                node(id:$pid){
-                  ... on ProjectV2{
-                    fields(first:100){
-                      nodes{
+              query ($pid:ID!) {
+                node(id:$pid) {
+                  ... on ProjectV2 {
+                    fields(first:100) {
+                      nodes {
                         __typename
-                        ... on ProjectV2TextField        { id name }
-                        ... on ProjectV2NumberField      { id name }
-                        ... on ProjectV2DateField        { id name }
-                        ... on ProjectV2IterationField   { id name }
-                        ... on ProjectV2SingleSelectField{
-                          id name options{ id name }
+                        # All fields expose these via the common interface
+                        ... on ProjectV2FieldCommon {
+                          id
+                          name
+                          dataType     # TEXT, NUMBER, DATE, SINGLE_SELECT, etc.
+                        }
+                        # The only subtype that gives you *extra* data
+                        ... on ProjectV2SingleSelectField {
+                          options { id name }
                         }
                       }
                     }
                   }
                 }
-              }`, {pid: projectId});
+              }`, { pid: projectId });
             return r.node.fields.nodes;
           }
 
