@@ -2,7 +2,7 @@ name: Manual Test Processor
 
 on:
   issues:
-    types: [opened, edited]            # new or modified issues
+    types: [opened, edited]             # run on new or modified issues
   workflow_dispatch:
     inputs:
       number:
@@ -48,7 +48,6 @@ jobs:
           const fs   = require('fs');
           const path = require('path');
 
-          // ---------- map Issue‑form fields ----------
           const form = JSON.parse(process.env.FORM_JSON);
           const alias      = (form.select_a_test        ?? [])[0] ?? '';
           const lvVersion  = (form.labview_version_used ?? [])[0] ?? '';
@@ -59,6 +58,7 @@ jobs:
 
           function fail(msg){ core.setFailed(msg); return; }
 
+          // quick validation ─────────────────────────
           if (!alias)      fail('Missing Select‑a‑Test value');
           if (!lvVersion)  fail('Missing LabVIEW Version');
           if (!lvBitness)  fail('Missing LabVIEW Bitness');
@@ -69,7 +69,7 @@ jobs:
           if (!valid.includes(testResult))
             fail(`Invalid Test Result: ${testResult}`);
 
-          // ---------- read markdown table from the template file ----------
+          // read the table inside the template file ──
           const root = process.env.GITHUB_WORKSPACE;
           let tplPath = path.join(root, '.github', 'ISSUE_TEMPLATE', 'manual-test-report.yml');
           if (!fs.existsSync(tplPath))
@@ -78,15 +78,14 @@ jobs:
             fail('Cannot locate manual-test-report.yml template file.');
 
           const templateText = fs.readFileSync(tplPath, 'utf8');
-          const rows = templateText
-            .split('\n')
-            .map(l => l.trimStart())
-            .filter(l => l.startsWith('|'));
+          const rows = templateText.split('\n')
+                                   .map(l => l.trimStart())
+                                   .filter(l => l.startsWith('|'));
 
           if (rows.length === 0)
             fail('No markdown table found inside the issue template.');
 
-          // ---------- find the row matching the alias ----------
+          // find alias row ────────────────────────────
           const key = alias.replace(/_/g,' ').toLowerCase();
           let numeric='', estimate='';
           for (const r of rows){
@@ -104,7 +103,9 @@ jobs:
           }
           if (!numeric) fail(`No matching row for alias ${alias}`);
 
-          // ---------- expose outputs ----------
+          core.notice(`Matched "${alias}" → TestID ${numeric}, Estimate ${estimate}`);
+
+          // outputs ───────────────────────────────────
           core.setOutput('numeric_test_id', numeric);
           core.setOutput('estimate_text',   estimate);
           core.setOutput('labview_version', lvVersion);
@@ -112,7 +113,6 @@ jobs:
           core.setOutput('os_used',         osUsed);
           core.setOutput('test_result',     testResult);
           core.setOutput('notes',           notes);
-
       env:
         FORM_JSON: ${{ steps.parse.outputs.json }}
 
@@ -129,21 +129,23 @@ jobs:
           const {owner,repo} = context.repo;
           const issueNode    = context.payload.issue.node_id;
 
-          // ---------- get existing project items ----------
+          core.startGroup('🔍 Locating project item(s)');
+          // fetch project items linked to this issue
           const q = await github.graphql(`
             query($id:ID!){
               node(id:$id){
                 ... on Issue{
-                  projectItems(first:50){
-                    nodes{ id project{id title} }
-                  }
+                  projectItems(first:50){ nodes{ id project{id title} } }
                 }
               }
             }`, {id: issueNode});
           let items = q.node.projectItems.nodes;
+          core.info(`Found ${items.length} existing project item(s).`);
+          core.endGroup();
 
-          // ---------- create project item if none ----------
+          // create a new item if none exist
           if (items.length === 0){
+            core.startGroup('➕ Creating project item');
             const pl = await github.graphql(`
               query($o:String!,$r:String!){
                 repository(owner:$o,name:$r){
@@ -158,9 +160,10 @@ jobs:
               }`, {p: proj.id, c: issueNode});
             items = [{id: add.addProjectV2ItemById.item.id, project: proj}];
             core.notice(`Created project item in “${proj.title}”`);
+            core.endGroup();
           }
 
-          // ---------- helper to update one field ----------
+          // helper to update one field
           async function setField(pid, iid, fid, value){
             await github.graphql(`
               mutation($p:ID!,$i:ID!,$f:ID!,$v:ProjectV2FieldValue!){
@@ -170,8 +173,10 @@ jobs:
               }`, {p: pid, i: iid, f: fid, v: value});
           }
 
-          // ---------- iterate each project item ----------
+          core.startGroup('✏️ Updating fields');
           for (const it of items){
+            core.notice(`Processing item ${it.id} in project “${it.project.title}”`);
+
             const fv = await github.graphql(`
               query($id:ID!){
                 node(id:$id){
@@ -196,16 +201,16 @@ jobs:
 
             const map = {};
             for (const n of fv.node.fieldValues.nodes){
-              // skip malformed nodes
-              if (!n.field || !n.field.name) continue;
+              if (!n.field || !n.field.name) continue;   // guard against undefined
               map[n.field.name] = {
                 fieldId : n.field.id,
                 type    : n.__typename,
                 node    : n
               };
             }
+            core.info(`Fields present: ${Object.keys(map).join(', ')}`);
 
-            // plain text fields
+            // plain‑text fields
             const textPairs = [
               ['TestID',            process.env.NUMID],
               ['Estimate',          process.env.EST],
@@ -215,17 +220,25 @@ jobs:
               ['Notes',             process.env.NOTES]
             ];
             for (const [fname, val] of textPairs){
-              if (map[fname])
+              if (map[fname]){
+                core.info(`→ ${fname}: "${val}"`);
                 await setField(it.project.id, it.id, map[fname].fieldId, {text: val});
+              } else {
+                core.warning(`Field “${fname}” not found in project – skipped.`);
+              }
             }
 
             // Test Result (single‑select)
             if (map['Test Result'] && map['Test Result'].type === 'ProjectV2ItemFieldSingleSelectValue'){
+              core.info(`→ Test Result: selecting option id ${map['Test Result'].node.id}`);
               await setField(it.project.id, it.id, map['Test Result'].fieldId, {
                 singleSelectOptionId: map['Test Result'].node.id
               });
+            } else {
+              core.warning('Field “Test Result” not found or not single‑select – skipped.');
             }
           }
+          core.endGroup();
       env:
         NUMID:  ${{ steps.build.outputs.numeric_test_id }}
         EST:    ${{ steps.build.outputs.estimate_text }}
