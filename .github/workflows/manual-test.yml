@@ -34,7 +34,6 @@ jobs:
         body:                ${{ github.event.issue.body }}
         # "manual-test-report.yml" lives inside .github/ISSUE_TEMPLATE
         issue-form-template: manual-test-report.yml
-        workspace:           ${{ github.workspace }}/.github/ISSUE_TEMPLATE
 
     # ──────────────────────────────────────────────────────────────────────
     # 3. Build a simple field map for later steps
