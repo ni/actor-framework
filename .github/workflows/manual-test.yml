@@ -1,205 +1,203 @@
-name: Process Manual Test
+name: Manual Test Processor
 
 on:
   issues:
-    types:        # run for newly opened *and* edited issues
-      - opened
-      - edited
+    types: [opened, edited]
 
 jobs:
   process-manual-test:
-    runs-on: ubuntu-latest
-
-    permissions:          # least‑privilege: we only touch issues
-      issues:   write
-      contents: read
-
+    if: github.event.issue.title == 'Manual Test'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read          # checkout
+      issues:   write         # comment / label if you ever need it
     steps:
-    # ──────────────────────────────
-    - name: ⬇️  Checkout repo
+    # ────────────────────────────────────────────────────────────────────
+    - name: ⬇️  Checkout
       uses: actions/checkout@v3
-      with:
-        fetch-depth: 1
 
-    # ──────────────────────────────
-    - name: 📋 Parse issue‑form
-      id: parse-issue
+    # Parse the issue‑form body into discrete outputs
+    - name: 📝 Parse issue form
+      id: parse
       uses: issue-ops/parser@v1.0.0
       with:
-        body:             ${{ github.event.issue.body }}
+        body:               ${{ github.event.issue.body }}
         issue-form-template: manual-test-report.yml
-        workspace:        ${{ github.workspace }}
+        workspace:          ${{ github.workspace }}
 
-    # ──────────────────────────────
-    - name: 🛠️  Build field set
-      id: build-field-set
+    # Promote parsed keys to env so subsequent steps can read them
+    - name: 🔧 Map parsed values to env
       run: |
-        echo "os_used=${{   fromJson(steps.parse-issue.outputs.json).operating_system[0]        }}" >> "$GITHUB_OUTPUT"
-        echo "lv_version=${{ fromJson(steps.parse-issue.outputs.json).labview_version_used[0]   }}" >> "$GITHUB_OUTPUT"
-        echo "bitness=${{    fromJson(steps.parse-issue.outputs.json).labview_bitness[0]        }}" >> "$GITHUB_OUTPUT"
-        echo "test_result=${{ fromJson(steps.parse-issue.outputs.json).test_result[0]           }}" >> "$GITHUB_OUTPUT"
-        # notes can be multiline – squash newlines so the API accepts it
-        echo "notes=$(echo "${{ fromJson(steps.parse-issue.outputs.json).notes_or_screenshots_optional }}" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+        echo "TEST_ID=${{ steps.parse.outputs.test_id }}"                       >> $GITHUB_ENV
+        echo "ESTIMATE=${{ steps.parse.outputs.estimate }}"                     >> $GITHUB_ENV
+        echo "LV_VERSION=${{ steps.parse.outputs.labview_version_used }}"       >> $GITHUB_ENV
+        echo "BITNESS=${{ steps.parse.outputs.labview_bitness }}"               >> $GITHUB_ENV
+        echo "OS_USED=${{ steps.parse.outputs.operating_system }}"              >> $GITHUB_ENV
+        echo "TEST_RESULT=${{ steps.parse.outputs.test_result }}"               >> $GITHUB_ENV
+        echo "NOTES=${{ steps.parse.outputs.notes_or_screenshots_optional }}"   >> $GITHUB_ENV
 
-    # ──────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
     - name: 🗂️  Update project fields
       uses: actions/github-script@v6
-      id: update-project
+      env:
+        ORG_LOGIN:   ni              # organisation login
+        PROJ_NUMBER: 29              # project number (from https://github.com/orgs/ni/projects/29)
+        TEST_ID:     ${{ env.TEST_ID }}
+        ESTIMATE:    ${{ env.ESTIMATE }}
+        LV_VERSION:  ${{ env.LV_VERSION }}
+        BITNESS:     ${{ env.BITNESS }}
+        OS_USED:     ${{ env.OS_USED }}
+        TEST_RESULT: ${{ env.TEST_RESULT }}
+        NOTES:       ${{ env.NOTES }}
       with:
-        github-token: ${{ secrets.PROJECTS_PAT }}
+        github-token: ${{ secrets.PROJECTS_PAT }}   # PAT with project scope
         script: |
-          /* ─────────────────────────────────────────────────────────────
-             GitHub‑Script – keep issue & project in sync
-             • creates/locates the Project V2 item
-             • auto‑creates missing text & single‑select fields
-             • auto‑creates missing select options
-             • updates values with detailed logging
+          /* ──────────────────────────────────────────────────────────────
+             GitHub‑Script: add the issue to the org project (if missing),
+             ensure all custom fields & options exist, then populate them.
+             Rich log output is kept for troubleshooting.
              ─────────────────────────────────────────────────────────── */
-          const log  = m => core.info(`ℹ️  ${m}`);
-          const warn = m => core.warning(`⚠️  ${m}`);
-
-          const orgLogin = process.env.ORG_LOGIN;
+          const orgLogin      = process.env.ORG_LOGIN;
           const projectNumber = Number(process.env.PROJ_NUMBER);
-          const contentId  = context.payload.issue.node_id;
+          const contentId     = context.payload.issue.node_id;
 
-          // 1 – locate the project
-          log(`Locating Project #${projectNumber} in org “${orgLogin}” …`);
-          const pj = await github.graphql(`
-            query($org:String!,$num:Int!){
+          const log  = (m)=>core.info(`  ${m}`);
+          const warn = (m)=>core.warning(`  ${m}`);
+
+          // ── 1. Locate the project ────────────────────────────────────
+          log(`🔍 Looking up Project #${projectNumber} in org “${orgLogin}”`);
+          const pjRes = await github.graphql(`
+            query ($org:String!,$num:Int!){
               organization(login:$org){
                 projectV2(number:$num){ id title }
               }
-            }`,
-            {org:orgLogin, num:projectNumber});
-          const project = pj.organization?.projectV2;
-          if (!project) return core.setFailed(`Project #${projectNumber} not found`);
-          log(`Using project “${project.title}”`);
+            }`, { org:orgLogin, num:projectNumber });
+          const project = pjRes.organization.projectV2;
+          if (!project) core.setFailed(`❌ Project #${projectNumber} not found`);
+          log(`➡️  Using project “${project.title}”`);
           const projectId = project.id;
 
-          // 2 – add the issue to the project (or discover its item if it’s already there)
-          let itemId;
-          try {
-            const add = await github.graphql(`
-              mutation($pid:ID!,$cid:ID!){
-                addProjectV2ItemById(input:{projectId:$pid,contentId:$cid}){
-                  item{ id }
-                }
-              }`,
-              {pid:projectId, cid:contentId});
-            itemId = add.addProjectV2ItemById.item.id;
-            log(`Added new item ${itemId}`);
-          } catch (err) {
-            if (!/already exists/i.test(err.message)) throw err;   // unexpected error
-            log('Issue already in project – finding existing item …');
-            const search = await github.graphql(`
-              query($pid:ID!,$first:Int!){
+          // ── 2. Ensure a project‑item exists for this issue ───────────
+          async function ensureItem(){
+            const r = await github.graphql(`
+              query ($pid:ID!){
                 node(id:$pid){
                   ... on ProjectV2{
-                    items(first:$first){
+                    items(first:100){
                       nodes{
                         id
-                        content{ ... on Issue{ id } ... on PullRequest{ id } }
+                        content { ... on Issue { id } ... on PullRequest { id } }
                       }
                     }
                   }
                 }
-              }`,
-              {pid:projectId, first:100});
-            const hit = search.node.items.nodes.find(n => n.content?.id === contentId);
-            if (!hit) return core.setFailed('Could not locate existing item.');
-            itemId = hit.id;
-            log(`Found item ${itemId}`);
+              }`, { pid:projectId });
+            const hit = r.node.items.nodes.find(n => n.content?.id === contentId);
+            if (hit){ log(`ℹ️  Found project item ${hit.id}`); return hit.id; }
+
+            log('➕ Adding issue to project…');
+            const add = await github.graphql(`
+              mutation ($pid:ID!,$cid:ID!){
+                addProjectV2ItemById(input:{ projectId:$pid, contentId:$cid }){
+                  item{ id }
+                }
+              }`, { pid:projectId, cid:contentId });
+            return add.addProjectV2ItemById.item.id;
           }
 
-          // 3 – helpers to list / create fields & options
-          async function listFields() {
-            const res = await github.graphql(`
-              query($pid:ID!){
+          // ── 3. Fetch (or lazily create) field configurations ─────────
+          async function fetchFields(){
+            const r = await github.graphql(`
+              query ($pid:ID!){
                 node(id:$pid){
                   ... on ProjectV2{
                     fields(first:100){
                       nodes{
-                        id name dataType
-                        ... on ProjectV2SingleSelectField{ options{ id name } }
+                        __typename
+                        ... on ProjectV2TextField        { id name }
+                        ... on ProjectV2NumberField      { id name }
+                        ... on ProjectV2DateField        { id name }
+                        ... on ProjectV2IterationField   { id name }
+                        ... on ProjectV2SingleSelectField{
+                          id name options{ id name }
+                        }
                       }
                     }
                   }
                 }
-              }`,
-              {pid:projectId});
-            return res.node.fields.nodes;
+              }`, { pid:projectId });
+            return r.node.fields.nodes;
           }
+
           async function createField(name,type){
-            log(`Creating field “${name}”`);
-            const res = await github.graphql(`
-              mutation($pid:ID!,$name:String!,$type:ProjectV2CustomFieldDataType!){
-                createProjectV2Field(input:{projectId:$pid,name:$name,dataType:$type}){
+            log(`⚙️  Creating field “${name}” (${type})`);
+            const r = await github.graphql(`
+              mutation ($pid:ID!,$name:String!,$type:ProjectV2CustomFieldDataType!){
+                createProjectV2Field(input:{
+                  projectId:$pid, name:$name, dataType:$type,
+                  ${type==='SINGLE_SELECT'
+                      ? 'singleSelectOptions:[{name:"Passed"},{name:"Failed"},{name:"Needs Review"}]'
+                      : ''}
+                }){
                   field{
-                    id name dataType
-                    ... on ProjectV2SingleSelectField{ options{ id name } }
+                    __typename id name
+                    ... on ProjectV2SingleSelectField { options{ id name } }
                   }
                 }
-              }`,
-              {pid:projectId,name,type});
-            return res.createProjectV2Field.field;
-          }
-          async function ensureOption(field,optName){
-            if (field.dataType !== 'SINGLE_SELECT') return null;
-            let opt = field.options.find(o=>o.name===optName);
-            if (opt) return opt.id;
-            log(`Creating option “${optName}” in “${field.name}”`);
-            const res = await github.graphql(`
-              mutation($pid:ID!,$fid:ID!,$name:String!){
-                createProjectV2SingleSelectFieldOption(input:{
-                  projectId:$pid,fieldId:$fid,name:$name
-                }){
-                  option{ id }
-                }
-              }`,
-              {pid:projectId,fid:field.id,name:optName});
-            return res.createProjectV2SingleSelectFieldOption.option.id;
-          }
-          async function setField(item, field, value){
-            if (!value){ warn(`Value for “${field.name}” empty – skipped`); return; }
-            const val = field.dataType==='SINGLE_SELECT'
-              ? {singleSelectOptionId: await ensureOption(field,value)}
-              : {text:String(value)};
-            await github.graphql(`
-              mutation($pid:ID!,$iid:ID!,$fid:ID!,$val:ProjectV2FieldValue!){
-                updateProjectV2ItemFieldValue(input:{
-                  projectId:$pid,itemId:$iid,fieldId:$fid,value:$val
-                }){ clientMutationId }
-              }`,
-              {pid:projectId,iid:item,fid:field.id,val});
-            log(`Set “${field.name}” → “${value}”`);
+              }`, { pid:projectId, name, type });
+            return r.createProjectV2Field.field;
           }
 
-          // 4 – desired field list
+          async function ensureOption(field,optName){
+            if (field.__typename!=='ProjectV2SingleSelectField') return null;
+            const existing = field.options.find(o => o.name === optName);
+            if (existing) return existing.id;
+            log(`⚙️  Adding option “${optName}”`);
+            const r = await github.graphql(`
+              mutation ($pid:ID!,$fid:ID!,$name:String!){
+                createProjectV2SingleSelectFieldOption(input:{
+                  projectId:$pid, fieldId:$fid, name:$name
+                }){ option{ id } }
+              }`, { pid:projectId, fid:field.id, name:optName });
+            return r.createProjectV2SingleSelectFieldOption.option.id;
+          }
+
+          async function setField(itemId,field,val){
+            let payload;
+            if (field.__typename==='ProjectV2SingleSelectField'){
+              const optId = await ensureOption(field,val);
+              payload = { singleSelectOptionId: optId };
+            } else {
+              payload = { text: val };
+            }
+            await github.graphql(`
+              mutation ($pid:ID!,$iid:ID!,$fid:ID!,$val:ProjectV2FieldValue!){
+                updateProjectV2ItemFieldValue(input:{
+                  projectId:$pid, itemId:$iid, fieldId:$fid, value:$val
+                }){ projectV2Item{ id } }
+              }`, { pid:projectId, iid:itemId, fid:field.id, val:payload });
+            log(`✅ “${field.name}” → “${val}”`);
+          }
+
+          // ── 4. Orchestrate ───────────────────────────────────────────
+          const itemId = await ensureItem();
+          let fields   = await fetchFields();
+
           const desired = [
-            {name:'Operating System', value:process.env.OS_USED,     type:'TEXT'},
-            {name:'LabVIEW Version',  value:process.env.LV_VERSION,  type:'TEXT'},
-            {name:'LabVIEW Bitness',  value:process.env.BITNESS,     type:'TEXT'},
-            {name:'Test Result',      value:process.env.TEST_RESULT, type:'SINGLE_SELECT'},
-            {name:'Notes',            value:process.env.NOTES,       type:'TEXT'},
+            { n:'TestID',           v:process.env.TEST_ID,    t:'TEXT'          },
+            { n:'Estimate',         v:process.env.ESTIMATE,   t:'TEXT'          },
+            { n:'Operating System', v:process.env.OS_USED,    t:'TEXT'          },
+            { n:'LabVIEW Version',  v:process.env.LV_VERSION, t:'TEXT'          },
+            { n:'LabVIEW Bitness',  v:process.env.BITNESS,    t:'TEXT'          },
+            { n:'Notes',            v:process.env.NOTES,      t:'TEXT'          },
+            { n:'Test Result',      v:process.env.TEST_RESULT,t:'SINGLE_SELECT' },
           ];
 
-          let fields = await listFields();
-          for (const d of desired){
-            if (!d.value){ warn(`No value for “${d.name}” – skipping`); continue; }
-            let field = fields.find(f=>f.name===d.name);
-            if (!field){
-              field = await createField(d.name, d.type);
-              fields.push(field);
-            }
-            await setField(itemId, field, d.value);
+          log('✏️  Updating project fields');
+          for (const f of desired){
+            if (!f.v){ warn(`Skipping “${f.n}” – empty`); continue; }
+            let fld = fields.find(x => x.name === f.n);
+            if (!fld){ fld = await createField(f.n,f.t); fields.push(fld); }
+            await setField(itemId,fld,f.v);
           }
-
-          log('🎉  Project item fully updated');
-      env:
-        ORG_LOGIN:          ni
-        PROJ_NUMBER:        29
-        OS_USED:            ${{ steps.build-field-set.outputs.os_used }}
-        LV_VERSION:         ${{ steps.build-field-set.outputs.lv_version }}
-        BITNESS:            ${{ steps.build-field-set.outputs.bitness }}
-        TEST_RESULT:        ${{ steps.build-field-set.outputs.test_result }}
-        NOTES:              ${{ steps.build-field-set.outputs.notes }}
+          log('🎉 Done');
