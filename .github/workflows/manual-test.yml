@@ -1,10 +1,14 @@
+# ──────────────────────────────────────────────────────────────────────────────
+#   Manual Test (Issues → Project automation)
+#   – uses a PAT stored in repo secret PROJECTS_TOKEN
+# ──────────────────────────────────────────────────────────────────────────────
 name: Manual Test (Issues → Project)
 
 on:
   issues:
     types: [opened, edited]
 
-# the job writes to issues & projects, so default perms are tightened
+# Default permissions appropriate for this workflow
 permissions:
   contents: read
   issues:   write
@@ -14,14 +18,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
     # ─────────────────────────────── 1. Checkout ──────────────────────────────
     - name: Checkout
       uses: actions/checkout@v3
 
     # ───────────────────────────── 2. Parse form ──────────────────────────────
     - name: Parse issue form
-      id: parse                              #  ← identifier used later
+      id: parse
       uses: issue-ops/parser@v1.0.0
       with:
         body:                ${{ github.event.issue.body }}
@@ -29,20 +32,19 @@ jobs:
         workspace:           ${{ github.workspace }}
 
     # ─────────────────────────── 3. Build field set ───────────────────────────
-    - name: Build field set
+    # (FIXED → added `github-token`)
+    - name: Build field set
       id: fields
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.PROJECTS_TOKEN }}
+        github-token: ${{ secrets.PROJECTS_TOKEN }}   # ← REQUIRED TOKEN
         script: |
           const fs   = require('fs');
           const path = require('path');
 
-          // ——— helper ———
-          function pick(obj, key){
-            const v = obj[key];
-            return Array.isArray(v) ? v[0] ?? '' : (v ?? '');
-          }
+          // helper to unwrap first element of array or return empty string
+          const pick = (obj, key) =>
+            Array.isArray(obj[key]) ? (obj[key][0] ?? '') : (obj[key] ?? '');
 
           // ---------- load parsed JSON from previous step ----------
           const form = JSON.parse(process.env.FORM_JSON);
@@ -61,20 +63,20 @@ jobs:
             core.setFailed(`Invalid Test Result: ${testResult}`);
 
           // ---------- read markdown table inside template ----------
-          const root   = process.env.GITHUB_WORKSPACE;
-          let tplPath  = path.join(root,'.github','ISSUE_TEMPLATE','manual-test-report.yml');
+          const root  = process.env.GITHUB_WORKSPACE;
+          let tplPath = path.join(root,'.github','ISSUE_TEMPLATE','manual-test-report.yml');
           if (!fs.existsSync(tplPath)) tplPath = path.join(root,'manual-test-report.yml');
           if (!fs.existsSync(tplPath))
             core.setFailed('manual-test-report.yml not found in repository.');
 
-          const lines = fs.readFileSync(tplPath,'utf8')
-                           .split('\n')
-                           .map(l=>l.trimStart())
-                           .filter(l=>l.startsWith('|'));   // only table rows
+          const rows = fs.readFileSync(tplPath,'utf8')
+                         .split('\n')
+                         .map(l=>l.trimStart())
+                         .filter(l=>l.startsWith('|'));
 
           const key = alias.replace(/_/g,' ').toLowerCase();
           let numeric='', estimate='';
-          for (const r of lines){
+          for (const r of rows){
             const cols = r.split('|').map(c=>c.trim());
             if (cols.length < 4) continue;
             if (cols[1].toLowerCase() !== key) continue;
@@ -95,12 +97,12 @@ jobs:
       env:
         FORM_JSON: ${{ steps.parse.outputs.form-json }}
 
-    # ────────── 4. Get previous test’s End Date (step id: prev) – token fixed ──
+    # ────────── 4. Get previous test’s End Date ───────────────────────────────
     - name: Get previous test's end date
       id: prev
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.PROJECTS_TOKEN }}   # ← was missing
+        github-token: ${{ secrets.PROJECTS_TOKEN }}
         script: |
           const {owner,repo} = context.repo;
           const curIssue = +process.env.CUR_NUMBER;
@@ -227,10 +229,9 @@ jobs:
                 }
               }`, {id: it.id});
 
-            // Build a quick lookup map:  field‑name → {fieldId,type,node}
             const map = {};
             for (const n of fv.node.fieldValues.nodes){
-              if (!n.field) continue;           // safeguard
+              if (!n.field) continue;
               map[n.field.name] = {
                 fieldId : n.field.id,
                 type    : n.__typename,
@@ -238,13 +239,13 @@ jobs:
               };
             }
 
-            // End Date  — write once
+            // End Date (write once)
             if (map['End Date'] && !map['End Date'].node.date){
               await setField(it.project.id, it.id, map['End Date'].fieldId,
                              {date: createdDate});
             }
 
-            // Start Date — refresh if previous exists
+            // Start Date (refresh if previous exists)
             if (process.env.PREV && map['Start Date']){
               await setField(it.project.id, it.id, map['Start Date'].fieldId,
                              {date: process.env.PREV});
@@ -264,7 +265,7 @@ jobs:
                 await setField(it.project.id, it.id, map[fname].fieldId, {text: val});
             }
 
-            // Test Result (single‑select)
+            // Test Result (single‑select)
             if (map['Test Result'] &&
                 map['Test Result'].type === 'ProjectV2ItemFieldSingleSelectValue'){
               await setField(it.project.id, it.id, map['Test Result'].fieldId, {
