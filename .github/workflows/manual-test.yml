@@ -1,248 +1,187 @@
-name: Manual Test Processor
+name: Manual Test → Project Sync
 
 on:
   issues:
-    types: [opened, edited]             # run on new or modified issues
-  workflow_dispatch:
-    inputs:
-      number:
-        description: 'Issue number (optional override)'
-        required: false
-        type: number
+    types: [opened, edited]          # run both on create AND when the issue is modified
+
+permissions:                        # least‑privilege for the built‑in token
+  contents: read
+  issues: write
+  pull-requests: write
+
+env:                                # constants for your organisation project
+  ORG_NAME: ni
+  PROJECT_NUMBER: 29                # << your org‑level Project number
 
 jobs:
-  process-manual-test:
+  sync-with-project:
     runs-on: ubuntu-latest
 
     steps:
-    # ------------------------------------------------
-    # 1. Check out the repository
-    # ------------------------------------------------
-    - name: Checkout
-      uses: actions/checkout@v3
-
-
-
-    # ------------------------------------------------
-    # 2. Parse the issue body into JSON
-    # ------------------------------------------------
-    - name: Parse manual‑test issue
+    # --------------------------------------------------------------
+    # 0) Parse the issue‑form that reporters submit
+    # --------------------------------------------------------------
+    - name: Parse Issue‑form
       id: parse
       uses: issue-ops/parser@v1.0.0
       with:
-        body: ${{ github.event.issue.body }}
         issue-form-template: manual-test-report.yml
-        workspace: ${{ github.workspace }}
+        body: ${{ github.event.issue.body }}
 
+    # --------------------------------------------------------------
+    # 1) Resolve the *node ID* of org‑project #29
+    #    (needs the PAT because it’s an organisation resource)
+    # --------------------------------------------------------------
+    - name: Get Project node ID
+      id: project
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.PROJECTS_PAT }}
+        result-encoding: string
+        script: |
+          const {ORG_NAME, PROJECT_NUMBER} = process.env;
+          const data = await github.graphql(`
+            query ($org: String!, $num: Int!) {
+              organization(login: $org) {
+                projectV2(number: $num) { id title }
+              }
+            }`,
+            { org: ORG_NAME, num: parseInt(PROJECT_NUMBER,10) }
+          );
 
+          const proj = data.organization?.projectV2;
+          if (!proj?.id) core.setFailed(`Project #${PROJECT_NUMBER} not found in org ${ORG_NAME}`);
 
-    # ------------------------------------------------
-    # 3. Build field set – read the markdown table and extract ID & estimate
-    # ------------------------------------------------
-    - name: Build field set
-      id: build
+          core.info(`🗂  Project "${proj.title}" → ${proj.id}`);
+          core.setOutput('id', proj.id);
+
+    # --------------------------------------------------------------
+    # 2) Add / update the issue in the project and fill in fields
+    # --------------------------------------------------------------
+    - name: Update Project fields
       uses: actions/github-script@v6
       with:
         github-token: ${{ secrets.PROJECTS_PAT }}
         script: |
-          const fs   = require('fs');
-          const path = require('path');
+          // ---------- helpers ----------
+          const projId    = '${{ steps.project.outputs.id }}';
+          const contentId = context.payload.issue.node_id;
 
-          const form = JSON.parse(process.env.FORM_JSON);
-          const alias      = (form.select_a_test        ?? [])[0] ?? '';
-          const lvVersion  = (form.labview_version_used ?? [])[0] ?? '';
-          const lvBitness  = (form.labview_bitness      ?? [])[0] ?? '';
-          const osUsed     = (form.operating_system     ?? [])[0] ?? '';
-          const testResult = (form.test_result          ?? [])[0] ?? '';
-          const notes      =  form.notes_or_screenshots_optional ?? '';
+          const wanted = {                    // values coming from the parsed form
+            "TestID":            '${{ steps.parse.outputs.numeric_test_id }}',
+            "Estimate":          '${{ steps.parse.outputs.estimate_text }}',
+            "Operating System":  '${{ steps.parse.outputs.operating_system }}',
+            "LabVIEW Version":   '${{ steps.parse.outputs.labview_version_used }}',
+            "LabVIEW Bitness":   '${{ steps.parse.outputs.labview_bitness }}',
+            "Notes":             '${{ steps.parse.outputs.notes_or_screenshots_optional }}',
+            "Test Result":       '${{ steps.parse.outputs.test_result }}'   // single‑select
+          };
 
-          function fail(msg){ core.setFailed(msg); return; }
-
-          // quick validation ─────────────────────────
-          if (!alias)      fail('Missing Select‑a‑Test value');
-          if (!lvVersion)  fail('Missing LabVIEW Version');
-          if (!lvBitness)  fail('Missing LabVIEW Bitness');
-          if (!osUsed)     fail('Missing Operating System');
-          if (!testResult) fail('Missing Test Result');
-
-          const valid = ['Passed','Failed','Needs Review'];
-          if (!valid.includes(testResult))
-            fail(`Invalid Test Result: ${testResult}`);
-
-          // read the table inside the template file ──
-          const root = process.env.GITHUB_WORKSPACE;
-          let tplPath = path.join(root, '.github', 'ISSUE_TEMPLATE', 'manual-test-report.yml');
-          if (!fs.existsSync(tplPath))
-            tplPath = path.join(root, 'manual-test-report.yml');
-          if (!fs.existsSync(tplPath))
-            fail('Cannot locate manual-test-report.yml template file.');
-
-          const templateText = fs.readFileSync(tplPath, 'utf8');
-          const rows = templateText.split('\n')
-                                   .map(l => l.trimStart())
-                                   .filter(l => l.startsWith('|'));
-
-          if (rows.length === 0)
-            fail('No markdown table found inside the issue template.');
-
-          // find alias row ────────────────────────────
-          const key = alias.replace(/_/g,' ').toLowerCase();
-          let numeric='', estimate='';
-          for (const r of rows){
-            const cols = r.split('|').map(c => c.trim());
-            if (cols.length < 4) continue;
-            if (cols[1].toLowerCase() !== key) continue;
-
-            estimate = cols[2].replace(/\*/g,'').trim();
-            if (!estimate) fail(`No Est. Time for “${cols[1]}”`);
-
-            const m = cols[3].match(/\/([0-9]{7})\.md\)?$/);
-            if (!m) fail('Link column does not contain 7‑digit .md filename');
-            numeric = m[1];
-            break;
-          }
-          if (!numeric) fail(`No matching row for alias ${alias}`);
-
-          core.notice(`Matched "${alias}" → TestID ${numeric}, Estimate ${estimate}`);
-
-          // outputs ───────────────────────────────────
-          core.setOutput('numeric_test_id', numeric);
-          core.setOutput('estimate_text',   estimate);
-          core.setOutput('labview_version', lvVersion);
-          core.setOutput('labview_bitness', lvBitness);
-          core.setOutput('os_used',         osUsed);
-          core.setOutput('test_result',     testResult);
-          core.setOutput('notes',           notes);
-      env:
-        FORM_JSON: ${{ steps.parse.outputs.json }}
-
-
-
-    # ------------------------------------------------
-    # 4. Update the repository project fields
-    # ------------------------------------------------
-    - name: Update project fields
-      uses: actions/github-script@v6
-      with:
-        github-token: ${{ secrets.PROJECTS_PAT }}
-        script: |
-          const {owner,repo} = context.repo;
-          const issueNode    = context.payload.issue.node_id;
-
+          // ---------- locate (or create) the project item ----------
           core.startGroup('🔍 Locating project item(s)');
-          // fetch project items linked to this issue
-          const q = await github.graphql(`
-            query($id:ID!){
-              node(id:$id){
-                ... on Issue{
-                  projectItems(first:50){ nodes{ id project{id title} } }
+          const found = await github.graphql(`
+            query($p:ID!,$c:ID!){
+              node(id:$p){
+                ... on ProjectV2{
+                  items(first:20){
+                    nodes{ id content{ ... on Issue{ id } } }
+                  }
                 }
               }
-            }`, {id: issueNode});
-          let items = q.node.projectItems.nodes;
-          core.info(`Found ${items.length} existing project item(s).`);
+            }`, {p: projId, c: contentId});
+
+          let itemId = found.node.items.nodes.find(n => n.content?.id === contentId)?.id;
+          core.info(`Found ${itemId ? 'existing' : 'no'} item for this issue`);
           core.endGroup();
 
-          // create a new item if none exist
-          if (items.length === 0){
-            core.startGroup('➕ Creating project item');
-            const pl = await github.graphql(`
-              query($o:String!,$r:String!){
-                repository(owner:$o,name:$r){
-                  projectsV2(first:1){nodes{id title}}
-                }
-              }`, {o: owner, r: repo});
-            const proj = pl.repository.projectsV2.nodes[0];
-            if (!proj) core.setFailed('No repository project found.');
+          if (!itemId) {
             const add = await github.graphql(`
               mutation($p:ID!,$c:ID!){
                 addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id}}
-              }`, {p: proj.id, c: issueNode});
-            items = [{id: add.addProjectV2ItemById.item.id, project: proj}];
-            core.notice(`Created project item in “${proj.title}”`);
-            core.endGroup();
+              }`, {p: projId, c: contentId});
+            itemId = add.addProjectV2ItemById.item.id;
+            core.notice(`➕ Created project item ${itemId}`);
           }
 
-          // helper to update one field
-          async function setField(pid, iid, fid, value){
-            await github.graphql(`
-              mutation($p:ID!,$i:ID!,$f:ID!,$v:ProjectV2FieldValue!){
-                updateProjectV2ItemFieldValue(input:{
-                  projectId:$p,itemId:$i,fieldId:$f,value:$v
-                }){ projectV2Item{id} }
-              }`, {p: pid, i: iid, f: fid, v: value});
-          }
-
-          core.startGroup('✏️ Updating fields');
-          for (const it of items){
-            core.notice(`Processing item ${it.id} in project “${it.project.title}”`);
-
-            const fv = await github.graphql(`
-              query($id:ID!){
-                node(id:$id){
-                  ... on ProjectV2Item{
-                    fieldValues(first:50){
-                      nodes{
-                        __typename
-                        ... on ProjectV2ItemFieldTextValue{
-                          text
-                          field{ ... on ProjectV2FieldCommon{ id name } }
-                        }
-                        ... on ProjectV2ItemFieldSingleSelectValue{
-                          id
-                          name
-                          field{ ... on ProjectV2FieldCommon{ id name } }
-                        }
-                      }
+          // ---------- load fields on the project ----------
+          core.startGroup('🗃️ Loading project fields');
+          const meta = await github.graphql(`
+            query($p:ID!){
+              node(id:$p){
+                ... on ProjectV2{
+                  fields(first:100){
+                    nodes{
+                      id name dataType
+                      ... on ProjectV2SingleSelectField{ options{ id name } }
                     }
                   }
                 }
-              }`, {id: it.id});
-
-            const map = {};
-            for (const n of fv.node.fieldValues.nodes){
-              if (!n.field || !n.field.name) continue;   // guard against undefined
-              map[n.field.name] = {
-                fieldId : n.field.id,
-                type    : n.__typename,
-                node    : n
-              };
-            }
-            core.info(`Fields present: ${Object.keys(map).join(', ')}`);
-
-            // plain‑text fields
-            const textPairs = [
-              ['TestID',            process.env.NUMID],
-              ['Estimate',          process.env.EST],
-              ['Operating System',  process.env.OS],
-              ['LabVIEW Version',   process.env.LV],
-              ['LabVIEW Bitness',   process.env.BIT],
-              ['Notes',             process.env.NOTES]
-            ];
-            for (const [fname, val] of textPairs){
-              if (map[fname]){
-                core.info(`→ ${fname}: "${val}"`);
-                await setField(it.project.id, it.id, map[fname].fieldId, {text: val});
-              } else {
-                core.warning(`Field “${fname}” not found in project – skipped.`);
               }
-            }
+            }`, {p: projId});
 
-            // Test Result (single‑select)
-            if (map['Test Result'] && map['Test Result'].type === 'ProjectV2ItemFieldSingleSelectValue'){
-              core.info(`→ Test Result: selecting option id ${map['Test Result'].node.id}`);
-              await setField(it.project.id, it.id, map['Test Result'].fieldId, {
-                singleSelectOptionId: map['Test Result'].node.id
-              });
+          const fieldMap = Object.fromEntries(
+            meta.node.fields.nodes.map(f => [f.name, f])
+          );
+          core.info(`Fields present: ${Object.keys(fieldMap).join(', ')}`);
+          core.endGroup();
+
+          // ---------- ensure all desired fields exist ----------
+          for (const [name] of Object.entries(wanted)) {
+            if (fieldMap[name]) continue;       // already present
+
+            const dataType = name === 'Test Result' ? 'SINGLE_SELECT' : 'TEXT';
+            const res = await github.graphql(`
+              mutation($p:ID!,$n:String!,$t:ProjectV2CustomFieldType!){
+                createProjectV2Field(input:{projectId:$p,name:$n,dataType:$t}){field{id name dataType}}
+              }`, {p: projId, n: name, t: dataType});
+            fieldMap[name] = res.createProjectV2Field.field;
+            core.notice(`🛠️  Created field "${name}" (${fieldMap[name].id})`);
+          }
+
+          // ---------- make sure the single‑select option exists ----------
+          if (fieldMap['Test Result']?.dataType === 'SINGLE_SELECT') {
+            const sel = fieldMap['Test Result'];
+            const val = wanted['Test Result'];
+
+            let optId = sel.options?.find(o => o.name === val)?.id;
+            if (!optId) {
+              const crt = await github.graphql(`
+                mutation ($fid:ID!, $n:String!){
+                  createProjectV2SingleSelectFieldOption(input:{fieldId:$fid,name:$n}){
+                    singleSelectFieldOption{id name}
+                  }
+                }`, {fid: sel.id, n: val});
+              optId = crt.createProjectV2SingleSelectFieldOption.singleSelectFieldOption.id;
+              core.notice(`⚙️  Added single‑select option "${val}"`);
+            }
+            sel.optionId = optId;
+          }
+
+          // ---------- push values into the item ----------
+          core.startGroup('✏️ Updating fields');
+          for (const [name,value] of Object.entries(wanted)) {
+            if (!value) continue;               // nothing to write
+            const f = fieldMap[name];
+            if (!f) { core.warning(`Field “${name}” missing – skipped`); continue; }
+
+            if (f.dataType === 'SINGLE_SELECT') {
+              await github.graphql(`
+                mutation($p:ID!,$i:ID!,$f:ID!,$o:ID!){
+                  updateProjectV2ItemFieldValue(input:{
+                    projectId:$p,itemId:$i,fieldId:$f,
+                    value:{singleSelectOptionId:$o}
+                  }){projectV2Item{id}}
+                }`, {p: projId, i: itemId, f: f.id, o: f.optionId});
+              core.info(`✓ ${name} → ${value}`);
             } else {
-              core.warning('Field “Test Result” not found or not single‑select – skipped.');
+              await github.graphql(`
+                mutation($p:ID!,$i:ID!,$f:ID!,$txt:String!){
+                  updateProjectV2ItemFieldValue(input:{
+                    projectId:$p,itemId:$i,fieldId:$f,
+                    value:{text:$txt}
+                  }){projectV2Item{id}}
+                }`, {p: projId, i: itemId, f: f.id, txt: value});
+              core.info(`✓ ${name} → ${value}`);
             }
           }
           core.endGroup();
-      env:
-        NUMID:  ${{ steps.build.outputs.numeric_test_id }}
-        EST:    ${{ steps.build.outputs.estimate_text }}
-        OS:     ${{ steps.build.outputs.os_used }}
-        LV:     ${{ steps.build.outputs.labview_version }}
-        BIT:    ${{ steps.build.outputs.labview_bitness }}
-        NOTES:  ${{ steps.build.outputs.notes }}
