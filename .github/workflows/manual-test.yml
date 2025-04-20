@@ -62,7 +62,7 @@ jobs:
       uses: actions/github-script@v6
       with:
         script: |
-          // github‑script injects {core,github,context} for us
+          // github‑script injects {core,github,context}
           const payload = JSON.parse(
             Buffer.from(process.env.GITHUB_EVENT_PAYLOAD, 'base64').toString()
           );
@@ -155,7 +155,7 @@ jobs:
             core.notice(`⚠️  Could not map alias “${parsed.test_id}” to a table row – Estimate set to 0`);
             estimate = 0;
           }
-          parsed.estimate_num = String(estimate);
+          parsed.estimate_num   = String(estimate);
 
           //--------------------------------------------------------------------
           // 3‑D  ▸  extract numeric digits from test_id  (may be blank)
@@ -166,42 +166,49 @@ jobs:
           //--------------------------------------------------------------------
           // 3‑E  ▸  export everything
           //--------------------------------------------------------------------
-          for (const [k, v] of Object.entries(parsed)) {
-            core.setOutput(k, v);
-          }
+          for (const [k, v] of Object.entries(parsed)) core.setOutput(k, v);
 
     #───────────────────────────────────────────────────────────────────
-    # 4) Locate the author’s previous “[Manual Test]” issue (if any)
+    # 4) Locate the author’s previous “[Manual Test]” issue via **GraphQL**
     #───────────────────────────────────────────────────────────────────
-    - name: Find prior [Manual Test] issue by same author
+    - name: Find prior [Manual Test] issue by same author
       id: find_previous
       uses: actions/github-script@v6
       env:
         CUR_NUM: ${{ github.event.issue.number }}
       with:
         script: |
-          const curNum    = parseInt(process.env.CUR_NUM, 10);
-          const author    = context.payload.issue.user.login;
+          const curNum      = parseInt(process.env.CUR_NUM, 10);
+          const authorLogin = context.payload.issue.user.login;
           const { owner, repo } = context.repo;
 
-          const q = `repo:${owner}/${repo} is:issue label:manual-test author:${author} in:title "[Manual Test]"`;
-          const res = await github.rest.search.issuesAndPullRequests({
-            q, sort: 'created', order: 'desc', per_page: 10
-          });
+          // GraphQL Search – avoids deprecated REST endpoint
+          const queryStr = `repo:${owner}/${repo} label:manual-test author:${authorLogin} ` +
+                           `in:title "[Manual Test]" sort:created-desc`;
 
-          const others = res.data.items.filter(i => i.number !== curNum);
-          if (!others.length) {
+          const q = `
+            query($q: String!) {
+              search(query: $q, type: ISSUE, first: 20) {
+                nodes {
+                  ... on Issue { number title }
+                }
+              }
+            }`;
+          const data = await github.graphql(q, { q: queryStr });
+
+          const issues = data.search.nodes.filter(i => i.number !== curNum);
+          if (!issues.length) {
             core.info('No previous Manual‑Test issue found.');
             core.setOutput('prev_num', '');
             return;
           }
-          core.setOutput('prev_num', String(others[0].number));
-          core.info(`Previous issue ⇒ #${others[0].number}`);
+          core.setOutput('prev_num', String(issues[0].number));
+          core.info(`Previous issue ⇒ #${issues[0].number}`);
 
     #───────────────────────────────────────────────────────────────────
     # 5) Read that issue’s “End Date” (if the issue is in a project)
     #───────────────────────────────────────────────────────────────────
-    - name: Read End Date from previous issue (if any)
+    - name: Read End Date from previous issue (if any)
       id: read_end_date
       if: steps.find_previous.outputs.prev_num != ''
       uses: actions/github-script@v6
@@ -212,7 +219,9 @@ jobs:
           const prev = parseInt(process.env.PREV_NUM, 10);
           const { owner, repo } = context.repo;
 
-          const { data: prevIssue } = await github.rest.issues.get({ owner, repo, issue_number: prev });
+          const { data: prevIssue } = await github.rest.issues.get({
+            owner, repo, issue_number: prev
+          });
           const prevNode = prevIssue.node_id;
           if (!prevNode) {
             core.notice(`Previous issue #${prev} has no node_id – skipping.`);
@@ -220,8 +229,8 @@ jobs:
           }
 
           const qItems = `
-            query($id: ID!)
-            { node(id: $id) {
+            query($id: ID!) {
+              node(id: $id) {
                 ... on Issue {
                   projectItems(first: 50) {
                     nodes { id project { title } }
@@ -234,8 +243,8 @@ jobs:
 
           let endDate = '';
           const qFields = `
-            query($item: ID!)
-            { node(id: $item) {
+            query($item: ID!) {
+              node(id: $item) {
                 ... on ProjectV2Item {
                   fieldValues(first:50) {
                     nodes {
@@ -271,7 +280,7 @@ jobs:
         LV_VERSION:      ${{ steps.parse_body.outputs.labview_version }}
         LV_BITNESS:      ${{ steps.parse_body.outputs.labview_bitness }}
         NOTES:           ${{ steps.parse_body.outputs.notes }}
-        PREV_END:        ${{ steps.read_end_date.outputs.prev_end_date }}
+        PREV_END:        ${{ steps.read_end_date.outputs.prev_end }}
       with:
         script: |
           const {
@@ -291,8 +300,8 @@ jobs:
           // (1) find project items attached to this issue
           //------------------------------------------------------------------
           const qItems = `
-            query($id: ID!)
-            { node(id: $id) {
+            query($id: ID!) {
+              node(id: $id) {
                 ... on Issue {
                   projectItems(first: 50) {
                     nodes { id project { id title } }
@@ -312,8 +321,8 @@ jobs:
           //------------------------------------------------------------------
           const readFields = async (itemId) => {
             const q = `
-              query($item: ID!)
-              { node(id: $item) {
+              query($item: ID!) {
+                node(id: $item) {
                   ... on ProjectV2Item {
                     fieldValues(first: 50) {
                       nodes {
@@ -342,10 +351,13 @@ jobs:
           const setField = async (projectId, itemId, fieldId, value) => {
             const m = `
               mutation($projectId:ID!,$itemId:ID!,$fieldId:ID!,
-                       $val:ProjectV2FieldValue!)
-              { updateProjectV2ItemFieldValue(input:{
+                       $val:ProjectV2FieldValue!) {
+                updateProjectV2ItemFieldValue(input:{
                   projectId:$projectId,itemId:$itemId,
-                  fieldId:$fieldId,value:$val}) { projectV2Item { id } } }`;
+                  fieldId:$fieldId,value:$val}) {
+                  projectV2Item { id }
+                }
+              }`;
             await github.graphql(m, { projectId, itemId, fieldId, val: value });
           };
 
