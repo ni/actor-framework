@@ -36,6 +36,7 @@
 		<Item Name="Unit Tests" Type="Folder">
 			<Item Name="Core" Type="Folder">
 				<Item Name="Actor Trace.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Actor Trace/Actor Trace.lvlib"/>
+				<Item Name="Messaging Tests.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Messaging Tests/Messaging Tests.lvlib"/>
 				<Item Name="Nested Actor.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Nested Actor/Nested Actor.lvlib"/>
 			</Item>
 			<Item Name="General" Type="Folder">
