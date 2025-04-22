@@ -35,15 +35,8 @@
 		</Item>
 		<Item Name="Unit Tests" Type="Folder">
 			<Item Name="Core" Type="Folder">
-				<Item Name="Actor Trace" Type="Folder">
-					<Item Name="Actor Trace.lvclass" Type="LVClass" URL="../../Test/Unit Tests/Core/Actor Trace/Actor Trace.lvclass"/>
-					<Item Name="AF Trace Queue.lvclass" Type="LVClass" URL="../../Test/Unit Tests/Core/Actor Trace/AF Trace Queue/AF Trace Queue.lvclass"/>
-				</Item>
-				<Item Name="Nested Actor" Type="Folder">
-					<Property Name="NI.SortType" Type="Int">1</Property>
-					<Item Name="Actor with Nesteds.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Nested Actor/Actor with Nesteds/Actor with Nesteds.lvlib"/>
-					<Item Name="Nested Actor.lvclass" Type="LVClass" URL="../../Test/Unit Tests/Core/Nested Actor/Nested Actor.lvclass"/>
-				</Item>
+				<Item Name="Actor Trace.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Actor Trace/Actor Trace.lvlib"/>
+				<Item Name="Nested Actor.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Nested Actor/Nested Actor.lvlib"/>
 			</Item>
 			<Item Name="General" Type="Folder">
 				<Item Name="Missing in Project.lvclass" Type="LVClass" URL="../../Test/Unit Tests/General/Missing in Project/Missing in Project.lvclass"/>
