@@ -38,6 +38,7 @@
 				<Item Name="Actor Trace.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Actor Trace/Actor Trace.lvlib"/>
 				<Item Name="Messaging Tests.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Messaging Tests/Messaging Tests.lvlib"/>
 				<Item Name="Nested Actor.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/Nested Actor/Nested Actor.lvlib"/>
+				<Item Name="PreLaunch Error.lvlib" Type="Library" URL="../../Test/Unit Tests/Core/PreLaunch Error/PreLaunch Error.lvlib"/>
 			</Item>
 			<Item Name="General" Type="Folder">
 				<Item Name="Missing in Project.lvclass" Type="LVClass" URL="../../Test/Unit Tests/General/Missing in Project/Missing in Project.lvclass"/>

@@ -8,6 +8,7 @@
 		<Item Name="Start Increment Msg.lvclass" Type="LVClass" URL="../Self Incrementer/Start Increment Msg/Start Increment Msg.lvclass"/>
 	</Item>
 	<Item Name="Test Actor" Type="Folder">
+		<Item Name="Divide Msg.lvclass" Type="LVClass" URL="../TestActor/Divide Msg/Divide Msg.lvclass"/>
 		<Item Name="Increment Msg.lvclass" Type="LVClass" URL="../TestActor/Increment Msg/Increment Msg.lvclass"/>
 		<Item Name="TestActor.lvclass" Type="LVClass" URL="../TestActor/Test Actor/TestActor.lvclass"/>
 	</Item>
