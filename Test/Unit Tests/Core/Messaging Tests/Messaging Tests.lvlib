@@ -4,12 +4,12 @@
 	<Property Name="NI.Lib.Version" Type="Str">1.0.0.0</Property>
 	<Property Name="NI.LV.All.SourceOnly" Type="Bool">true</Property>
 	<Item Name="Self Incrementer" Type="Folder">
-		<Item Name="Self Incrementer.lvclass" Type="LVClass" URL="../Self Incrementer/Self Incrementer.lvclass"/>
-		<Item Name="Start Increment Msg.lvclass" Type="LVClass" URL="../Start Increment Msg/Start Increment Msg.lvclass"/>
+		<Item Name="Self Incrementer.lvclass" Type="LVClass" URL="../Self Incrementer/Self Incrementer/Self Incrementer.lvclass"/>
+		<Item Name="Start Increment Msg.lvclass" Type="LVClass" URL="../Self Incrementer/Start Increment Msg/Start Increment Msg.lvclass"/>
 	</Item>
 	<Item Name="Test Actor" Type="Folder">
-		<Item Name="Increment Msg.lvclass" Type="LVClass" URL="../Increment Msg/Increment Msg.lvclass"/>
-		<Item Name="TestActor.lvclass" Type="LVClass" URL="../TestActor/TestActor.lvclass"/>
+		<Item Name="Increment Msg.lvclass" Type="LVClass" URL="../TestActor/Increment Msg/Increment Msg.lvclass"/>
+		<Item Name="TestActor.lvclass" Type="LVClass" URL="../TestActor/Test Actor/TestActor.lvclass"/>
 	</Item>
 	<Item Name="Messaging Tests.lvclass" Type="LVClass" URL="../Messaging Tests/Messaging Tests.lvclass"/>
 </Library>
