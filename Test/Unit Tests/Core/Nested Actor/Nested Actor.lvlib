@@ -4,5 +4,6 @@
 	<Property Name="NI.Lib.Version" Type="Str">1.0.0.0</Property>
 	<Property Name="NI.LV.All.SourceOnly" Type="Bool">true</Property>
 	<Item Name="Actor with Nesteds.lvclass" Type="LVClass" URL="../Actor with Nesteds/Actor with Nesteds.lvclass"/>
+	<Item Name="Nested Actor Test.lvclass" Type="LVClass" URL="../Nested Actor Test/Nested Actor Test.lvclass"/>
 	<Item Name="Stop Nested Actors Msg.lvclass" Type="LVClass" URL="../Stop Nested Actors Msg/Stop Nested Actors Msg.lvclass"/>
 </Library>
