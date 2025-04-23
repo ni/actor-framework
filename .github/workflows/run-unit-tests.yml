@@ -1,0 +1,43 @@
+name: Run unit tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - release/*
+      - feature/*
+      - hotfix/*
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+  push:
+    branches:
+      - main
+      - develop
+      - release/*
+      - hotfix/*
+      - feature/*
+
+  workflow_dispatch:
+
+jobs:
+  run-unit-tests:
+    name: Run unit tests
+    runs-on: [self-hosted, iconeditor]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run unit tests
+        shell: pwsh
+        working-directory: pipeline/scripts
+
+        run: |
+          $repoRoot = $env:GITHUB_WORKSPACE
+          $scriptsFolder = Join-Path $repoRoot 'pipeline/scripts'
+          .\unit_tests.ps1 -RelativePath $repoRoot -AbsolutePathScripts $scriptsFolder

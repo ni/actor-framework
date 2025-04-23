@@ -1,0 +1,128 @@
+name: "Manual Test Report"
+description: "Select a test case, execute it, and report the result."
+title: "[Manual Test] {{ test_id }} by {{ user_name }}"
+labels: ["manual-test"]
+assignees: []
+
+body:
+  #────────────────────────────────────────────────────────────────────
+  #  WHO IS REPORTING
+  #────────────────────────────────────────────────────────────────────
+  - type: input
+    id: user_name
+    attributes:
+      label: "👤 Your GitHub username"
+      description: "Enter your GitHub username."
+      placeholder: "e.g. @octocat"
+    validations:
+      required: true
+
+  #────────────────────────────────────────────────────────────────────
+  #  WHICH TEST DID YOU RUN?
+  #    • Values must match the “Title” column in the reference table
+  #────────────────────────────────────────────────────────────────────
+  - type: dropdown
+    id: test_id
+    attributes:
+      label: "🧪 Select a Test"
+      description: "Choose the test you executed (see reference table below)."
+      options:
+        - "Actor Creation"
+        - "Creating a Standard Message"
+        - "Creating Abstract and Concrete Messages"
+        - "Creating Multiple Messages for Actors"
+        - "Project Provider Features not Available"
+        - "REQUIRES RT - Testing on RT Targets"
+        - "PPL Support"
+        - "Create new 'Feedback Evaporative Cooler' project"
+        - "Create new 'Actor Framework' project"
+    validations:
+      required: true
+
+  #────────────────────────────────────────────────────────────────────
+  #  ENVIRONMENT DETAILS
+  #────────────────────────────────────────────────────────────────────
+  - type: dropdown
+    id: labview_version
+    attributes:
+      label: "🧰 LabVIEW Version Used"
+      description: "Select the version of LabVIEW you used to run this test."
+      options:
+        - "LabVIEW 2025 Q1"
+        - "LabVIEW 2024 Q3"
+        - "LabVIEW 2024 Q1"
+        - "LabVIEW 2023 Q3"
+        - "LabVIEW 2023 Q1"
+        - "LabVIEW 2022 Q3"
+        - "LabVIEW 2021"
+        - "LabVIEW 2020"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: labview_bitness
+    attributes:
+      label: "💻 LabVIEW Bitness"
+      description: "Choose whether you ran the test in 32‑bit or 64‑bit LabVIEW."
+      options:
+        - "32-bit"
+        - "64-bit"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os_used
+    attributes:
+      label: "🖥️ Operating System"
+      description: "Choose which operating system you used for this test run."
+      options:
+        - "Windows"
+        - "Linux"
+        - "Real Time (RT)"
+    validations:
+      required: true
+
+  #────────────────────────────────────────────────────────────────────
+  #  REFERENCE – scraped by the workflow for the Estimate field
+  #  • Do NOT change the vertical‑bar alignment; it makes parsing easy
+  #────────────────────────────────────────────────────────────────────
+  - type: markdown
+    attributes:
+      value: |
+        ## 📋 Test Metadata Reference
+
+        | Title                                                           | Est. Time | Link                                                                                           |
+        |-----------------------------------------------------------------|-----------|------------------------------------------------------------------------------------------------|
+        | Actor Creation                                                 | *20 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713129.md) |
+        | Creating a Standard Message                                    | *20 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713131.md) |
+        | Creating Abstract and Concrete Messages                        | *45 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713132.md) |
+        | Creating Multiple Messages for Actors                          | *20 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713133.md) |
+        | Project Provider Features not Available                        | *5 Min*   | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713134.md) |
+        | REQUIRES RT - Testing on RT Targets                            | *30 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713135.md) |
+        | PPL Support                                                    | *60 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713136.md) |
+        | Create new 'Feedback Evaporative Cooler' project               | *10 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713431.md) |
+        | Create new 'Actor Framework' project                           | *10 Min*  | [View](https://github.com/ni/actor-framework/blob/develop/Documentation/Test%20Plan/1713432.md) |
+
+  #────────────────────────────────────────────────────────────────────
+  #  RESULT
+  #────────────────────────────────────────────────────────────────────
+  - type: dropdown
+    id: test_result
+    attributes:
+      label: "✅ Test Result"
+      description: "What was the result after running the test?"
+      options:
+        - "Passed"
+        - "Failed"
+        - "Needs Review"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: "📝 Notes or Screenshots (optional)"
+      description: "Add details, bugs, or screenshots here if needed. (You can paste images directly into the issue.)"
+      placeholder: "E.g. Unexpected dialog appeared on step 3..."
+    validations:
+      required: false
