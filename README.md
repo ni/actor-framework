@@ -33,6 +33,10 @@ Actor Framework (AF) is NI’s reference implementation of the Actor Model in La
 - **Primary LabVIEW target:** 2020 SP1 or later (32- & 64-bit)
 - **Package format:** VIPM (`.vip`) built by GitHub Actions for every merge to `main` and tagged release.
 
+Network Endpoint Actors are actors that create connections between actors across communication networks.
+- **Primary LabVIEW target:** 2020 SP1 or later (32- and 64-bit)
+- **Package format:**  VIPM ('.vip').  This package is an add-on to the ecosystem, and should maintain a separate installer from core Actor Framework.
+
 ---
 
 ## Getting Started
