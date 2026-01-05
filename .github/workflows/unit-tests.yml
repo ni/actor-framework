@@ -1,0 +1,64 @@
+name: Run unit tests (GitHub Hosted)
+
+on:
+  # TODO: Uncomment the original triggers below when ready for full deployment
+  # pull_request:
+  #   branches:
+  #     - main
+  #     - develop
+  #     - release/*
+  #     - feature/*
+  #     - hotfix/*
+  #   types:
+  #     - opened
+  #     - synchronize
+  #     - reopened
+  #     - ready_for_review
+
+  push:
+    branches:
+      - feature/github-actions-cicd  # Temporary: only run on this branch
+      # - main
+      # - develop
+      # - release/*
+      # - hotfix/*
+      # - feature/*
+
+  workflow_dispatch:
+
+jobs:
+  run-unit-tests:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    container:
+      image: nationalinstruments/labview:2025q3patch1-linux
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify LabVIEW installation
+        run: |
+          echo "Verifying LabVIEW installation..."
+          labviewcli --version || echo "LabVIEW CLI check complete"
+
+      - name: Run unit tests
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          REPO_ROOT="${GITHUB_WORKSPACE}"
+          SCRIPTS_FOLDER="${REPO_ROOT}/pipeline/scripts"
+
+          echo "Repository root: $REPO_ROOT"
+          echo "Scripts folder: $SCRIPTS_FOLDER"
+
+          # TODO: Adapt the unit test execution for Linux container
+          # The original Windows script uses:
+          # - RunUnitTests.ps1 with LabVIEW 2021 32-bit and 64-bit
+          # - Close_LabVIEW.ps1 to close LabVIEW process
+          #
+          # For Linux container, use LabVIEW CLI commands:
+          # labviewcli -OperationName RunVI -VIPath <path-to-test-vi>
+
+          echo "LabVIEW container is ready for unit test execution"
+          echo "Placeholder: Add LabVIEW CLI commands to run unit tests"
