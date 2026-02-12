@@ -49,11 +49,11 @@ jobs:
           
           # Run VI Analyzer
           LabVIEWCLI \
-            -LabVIEWPath "/usr/local/natinst/LabVIEW-2025-64/labview" \
             -OperationName RunVIAnalyzer \
             -ConfigPath "$ABSOLUTE_CONFIG" \
             -ReportPath "$ABSOLUTE_REPORT" \
             -ReportSaveType HTML \
+            -LabVIEWPath "/usr/local/natinst/LabVIEW-2025-64/labview" \
             -Headless
 
       - name: Upload VI Analyzer Report
