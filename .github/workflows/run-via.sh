@@ -5,7 +5,7 @@ set -e
 ABSOLUTE_CONFIG="/workspace/Core/ActorFramework/Actor"
 ABSOLUTE_REPORT="/workspace/vi-analyzer-report.htm"
 LV_YEAR="${LV_YEAR:-2025}"
-LABVIEW_PATH="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/labviewprofull"
+LABVIEW_PATH="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/labview"
 
 # Verify that the configuration path exists
 if [ ! -d "$ABSOLUTE_CONFIG" ] && [ ! -f "$ABSOLUTE_CONFIG" ]; then
@@ -20,14 +20,10 @@ echo "LabVIEWPath: $LABVIEW_PATH"
 echo ""
 
 # Run VI Analyzer
-LabVIEWCLI -LogToConsole TRUE \
+LabVIEWCLI \
   -OperationName RunVIAnalyzer \
   -ConfigPath "$ABSOLUTE_CONFIG" \
   -ReportPath "$ABSOLUTE_REPORT" \
   -ReportSaveType HTML \
   -LabVIEWPath "$LABVIEW_PATH" \
   -Headless
-
-echo ""
-echo "VI Analyzer execution completed"
-echo "Report generated at: $ABSOLUTE_REPORT"
