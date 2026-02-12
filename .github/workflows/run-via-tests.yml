@@ -32,7 +32,7 @@ jobs:
     name: Run VI Analyzer tests
     runs-on: ubuntu-latest
     container:
-      image: nationalinstruments/labview:2026q1-linux
+      image: nationalinstruments/labview:2025q3patch1-linux
 
     steps:
       - name: Checkout code
@@ -47,12 +47,12 @@ jobs:
           ABSOLUTE_REPORT="$GITHUB_WORKSPACE/vi-analyzer-report.htm"
           
           # Run VI Analyzer
-          LabVIEWCLI \
+          LabVIEWCLI -LogToConsole TRUE \
             -OperationName RunVIAnalyzer \
             -ConfigPath "$ABSOLUTE_CONFIG" \
             -ReportPath "$ABSOLUTE_REPORT" \
             -ReportSaveType HTML \
-            -LabVIEWPath "/usr/local/natinst/LabVIEW-2026-64/labview" \
+            -LabVIEWPath "/usr/local/natinst/LabVIEW-2025-64/labviewprofull" \
             -Headless
 
       - name: Upload VI Analyzer Report
