@@ -52,7 +52,7 @@ jobs:
             -ConfigPath "$ABSOLUTE_CONFIG" \
             -ReportPath "$ABSOLUTE_REPORT" \
             -ReportSaveType HTML \
-            -LabVIEWPath "/usr/local/natinst/LabVIEW-2025-64/labview" \
+            -LabVIEWPath "/usr/local/natinst/LabVIEW-2026-64/labview" \
             -Headless
 
       - name: Upload VI Analyzer Report
