@@ -31,18 +31,20 @@ jobs:
   run-via-tests:
     name: Run VI Analyzer tests
     runs-on: ubuntu-latest
-    container:
-      image: nationalinstruments/labview:2025q3patch1-linux
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Pull Docker Image
+        run: docker pull nationalinstruments/labview:2025q3patch1-linux
+
       - name: Run VI Analyzer tests
-        shell: bash
         run: |
-          chmod +x .github/workflows/run-via.sh
-          ./.github/workflows/run-via.sh
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            nationalinstruments/labview:2025q3patch1-linux \
+            bash -c "cd /workspace && chmod +x .github/workflows/run-via.sh && ./.github/workflows/run-via.sh"
 
       - name: Upload VI Analyzer Report
         uses: actions/upload-artifact@v4
