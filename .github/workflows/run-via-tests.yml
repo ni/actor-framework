@@ -32,7 +32,7 @@ jobs:
     name: Run VI Analyzer tests
     runs-on: ubuntu-latest
     container:
-      image: nationalinstruments/labview:2025q3patch1-linux
+      image: nationalinstruments/labview:2026q1-linux
 
     steps:
       - name: Checkout code
