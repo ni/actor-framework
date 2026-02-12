@@ -40,12 +40,11 @@ jobs:
 
       - name: Run VI Analyzer tests
         shell: bash
-        working-directory: ${{ github.workspace }}
         run: |
           # Resolve paths
           # TODO: Make the paths configurable via inputs
-          ABSOLUTE_CONFIG="${{ github.workspace }}/Core/ActorFramework/Actor"
-          ABSOLUTE_REPORT="${{ github.workspace }}/vi-analyzer-report.htm"
+          ABSOLUTE_CONFIG="$GITHUB_WORKSPACE/Core/ActorFramework/Actor"
+          ABSOLUTE_REPORT="$GITHUB_WORKSPACE/vi-analyzer-report.htm"
           
           # Run VI Analyzer
           LabVIEWCLI \
@@ -61,5 +60,5 @@ jobs:
         if: always()  # Upload even if tests fail
         with:
           name: vi-analyzer-report
-          path: ${{ github.workspace }}/vi-analyzer-report.htm
+          path: vi-analyzer-report.htm
           retention-days: 7
