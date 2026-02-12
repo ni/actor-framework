@@ -42,5 +42,23 @@ jobs:
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
-          # TODO: Add commands to run VI Analyzer tests on files in this repo
-          echo "Work In progress: VI Analyzer tests to be implemented."
+          # Resolve paths
+          # TODO: Make the paths configurable via inputs
+          ABSOLUTE_CONFIG="${{ github.workspace }}/Core/ActorFramework/Actor"
+          ABSOLUTE_REPORT="${{ github.workspace }}/vi-analyzer-report.htm"
+          
+          # Run VI Analyzer
+          LabVIEWCLI \
+            -OperationName RunVIAnalyzer \
+            -ConfigPath "$ABSOLUTE_CONFIG" \
+            -ReportPath "$ABSOLUTE_REPORT" \
+            -ReportSaveType HTML \
+            -Headless
+
+      - name: Upload VI Analyzer Report
+        uses: actions/upload-artifact@v4
+        if: always()  # Upload even if tests fail
+        with:
+          name: vi-analyzer-report
+          path: ${{ github.workspace }}/vi-analyzer-report.htm
+          retention-days: 7
