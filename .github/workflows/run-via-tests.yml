@@ -41,19 +41,8 @@ jobs:
       - name: Run VI Analyzer tests
         shell: bash
         run: |
-          # Resolve paths
-          # TODO: Make the paths configurable via inputs
-          ABSOLUTE_CONFIG="$GITHUB_WORKSPACE/Core/ActorFramework/Actor"
-          ABSOLUTE_REPORT="$GITHUB_WORKSPACE/vi-analyzer-report.htm"
-          
-          # Run VI Analyzer
-          LabVIEWCLI -LogToConsole TRUE \
-            -OperationName RunVIAnalyzer \
-            -ConfigPath "$ABSOLUTE_CONFIG" \
-            -ReportPath "$ABSOLUTE_REPORT" \
-            -ReportSaveType HTML \
-            -LabVIEWPath "/usr/local/natinst/LabVIEW-2025-64/labviewprofull" \
-            -Headless
+          chmod +x .github/workflows/run-via.sh
+          ./.github/workflows/run-via.sh
 
       - name: Upload VI Analyzer Report
         uses: actions/upload-artifact@v4
