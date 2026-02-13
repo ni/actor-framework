@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+VIA_EXIT_CODE="${1:-0}"
 
 if [ ! -f "vi-analyzer-report.htm" ]; then
     echo "No VI Analyzer report found"
