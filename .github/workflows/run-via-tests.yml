@@ -41,7 +41,7 @@ jobs:
         with:
           template-path: '.github/actions/generate_viancfg/via_template.viancfg'
           output-path: 'generated-config.viancfg'
-          base-branch: ${{ github.event.pull_request.base.ref || 'origin/develop' }}
+          base-branch: origin/${{ github.event.pull_request.base.ref || 'develop' }}
 
       - name: Check if config was generated
         id: check-config
