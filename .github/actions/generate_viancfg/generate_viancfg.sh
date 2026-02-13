@@ -52,9 +52,6 @@ echo ""
 # Get Git root directory
 GIT_ROOT=$(git rev-parse --show-toplevel)
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Read template XML and prepare output
 cp "$TEMPLATE_PATH" "$OUTPUT_PATH"
 
@@ -63,6 +60,9 @@ if [ -n "$OUTPUT_DIR" ] && [ ! -d "$OUTPUT_DIR" ]; then
   mkdir -p "$OUTPUT_DIR"
 fi
 
+# Get the absolute path of the output config for relative path calculation
+OUTPUT_ABS_DIR=$(cd "$OUTPUT_DIR" && pwd)
+
 # Create a temporary file for the items
 ITEMS_FILE=$(mktemp)
 
@@ -70,8 +70,8 @@ for file in "${CHANGED_FILES[@]}"; do
   # Construct absolute path
   ABSOLUTE_FILE_PATH="$GIT_ROOT/$file"
   
-  # Calculate relative path from script folder to the VI
-  RELATIVE_PATH=$(realpath --relative-to="$SCRIPT_DIR" "$ABSOLUTE_FILE_PATH")
+  # Calculate relative path from output config to the VI
+  RELATIVE_PATH=$(realpath --relative-to="$OUTPUT_ABS_DIR" "$ABSOLUTE_FILE_PATH")
   
   FORMATTED_PATH="\"$RELATIVE_PATH\""
   
