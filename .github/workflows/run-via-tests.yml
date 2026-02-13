@@ -45,6 +45,15 @@ jobs:
           output-path: 'generated-config.viancfg'
           base-branch: origin/${{ github.event.pull_request.base.ref || 'develop' }}
 
+      - name: Upload Generated Config (Debug) # TODO: Delete this step later
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generated-viancfg
+          path: generated-config.viancfg
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Check if config was generated
         id: check-config
         run: |
