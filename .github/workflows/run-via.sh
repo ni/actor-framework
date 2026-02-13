@@ -2,7 +2,7 @@
 set -e
 
 # VI Analyzer script for GitHub Actions
-ABSOLUTE_CONFIG="/workspace/Core/ActorFramework/Actor"
+ABSOLUTE_CONFIG="/workspace/generated-config.viancfg"
 ABSOLUTE_REPORT="/workspace/vi-analyzer-report.htm"
 LV_YEAR="${LV_YEAR:-2025}"
 LABVIEW_PATH="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/labview"

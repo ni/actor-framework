@@ -36,10 +36,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Generate VI Analyzer Config
+        uses: ./.github/actions/generate_viancfg
+        with:
+          template-path: '.github/actions/generate_viancfg/via_template.viancfg'
+          output-path: 'generated-config.viancfg'
+          base-branch: ${{ github.event.pull_request.base.ref || 'origin/develop' }}
+
+      - name: Check if config was generated
+        id: check-config
+        run: |
+          if [ -f "generated-config.viancfg" ]; then
+            echo "config_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "No LabVIEW files changed; skipping VI Analyzer tests."
+            echo "config_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Pull Docker Image
+        if: steps.check-config.outputs.config_exists == 'true'
         run: docker pull nationalinstruments/labview:2025q3patch1-linux
 
       - name: Run VI Analyzer tests
+        if: steps.check-config.outputs.config_exists == 'true'
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \

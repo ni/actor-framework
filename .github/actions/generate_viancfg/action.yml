@@ -1,0 +1,25 @@
+name: 'Generate Dynamic VI Analyzer Config'
+description: 'Generates a .viancfg file based on changed files in a PR'
+inputs:
+  template-path:
+    description: 'Path to the .viancfg template'
+    required: true
+  output-path:
+    description: 'Path to save the generated .viancfg'
+    required: true
+  base-branch:
+    description: 'Branch to compare against'
+    default: 'origin/develop'
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Generate VI Analyzer Config
+      shell: bash
+      run: |
+        chmod +x ${{ github.action_path }}/generate_viancfg.sh
+        ${{ github.action_path }}/generate_viancfg.sh \
+          --template-path "${{ inputs.template-path }}" \
+          --output-path "${{ inputs.output-path }}" \
+          --target-branch "${{ inputs.base-branch }}"
