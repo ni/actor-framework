@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history
 
       - name: Generate VI Analyzer Config
         uses: ./.github/actions/generate_viancfg
