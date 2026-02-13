@@ -75,7 +75,54 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             nationalinstruments/labview:2025q3patch1-linux \
             bash -c "cd /workspace && chmod +x .github/workflows/run-via.sh && ./.github/workflows/run-via.sh"
-
+      
+      - name: Parse and Display VI Analyzer Results
+        if: steps.check-config.outputs.config_exists == 'true' && always()
+        run: |
+          if [ ! -f "vi-analyzer-report.htm" ]; then
+            echo "No VI Analyzer report found"
+            exit 0
+          fi
+          
+          echo "=================================================="
+          echo " VI Analyzer Results"
+          echo "=================================================="
+          echo ""
+          
+          # Extract results using grep and sed
+          VIS_ANALYZED=$(grep -oP 'VIs Analyzed</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
+          TESTS_RUN=$(grep -oP 'Total Tests Run</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
+          PASSED=$(grep -oP 'Passed Tests</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
+          FAILED=$(grep -oP 'Failed Tests</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
+          SKIPPED=$(grep -oP 'Skipped Tests</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
+          
+          echo "VIs Analyzed:    $VIS_ANALYZED"
+          echo "Total Tests:     $TESTS_RUN"
+          echo "Passed:       $PASSED"
+          echo "Failed:       $FAILED"
+          echo "Skipped:      $SKIPPED"
+          echo ""
+          
+          if [ "$FAILED" -gt 0 ]; then
+            echo "=================================================="
+            echo " Failed Tests Summary"
+            echo "=================================================="
+            
+            # Extract failed test details (basic parsing)
+            grep -oP '<b>[^<]+\.vi</b>' vi-analyzer-report.htm | sed 's/<b>//g;s/<\/b>//g' | while read vi_name; do
+              echo ""
+              echo "$vi_name"
+            done
+            
+            echo ""
+            echo "See full report in artifacts for details."
+            echo "=================================================="
+            exit 1  # Fail the workflow if tests failed
+          else
+            echo "All tests passed!"
+            echo "=================================================="
+          fi
+          
       - name: Upload VI Analyzer Report
         uses: actions/upload-artifact@v4
         if: always()  # Upload even if tests fail
