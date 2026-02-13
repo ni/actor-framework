@@ -41,7 +41,7 @@ jobs:
       - name: Generate VI Analyzer Config
         uses: ./.github/actions/generate_viancfg
         with:
-          template-path: '.github/actions/generate_viancfg/via_template.viancfg'
+          template-path: '.github/actions/generate_viancfg/via_template_linux.viancfg'
           output-path: 'generated-config.viancfg'
           base-branch: origin/${{ github.event.pull_request.base.ref || 'develop' }}
 
