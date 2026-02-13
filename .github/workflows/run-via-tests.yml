@@ -81,64 +81,8 @@ jobs:
           VIA_EXIT_CODE=$?
           set -e  # Re-enable exit on error
     
-          if [ ! -f "vi-analyzer-report.htm" ]; then
-            echo "No VI Analyzer report found"
-            exit $VIA_EXIT_CODE
-          fi
-          
-          echo ""
-          echo "=================================================="
-          echo " VI Analyzer Results"
-          echo "=================================================="
-          echo ""
-          
-          # Extract results using grep and sed
-          VIS_ANALYZED=$(grep -oP 'VIs Analyzed</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
-          TESTS_RUN=$(grep -oP 'Total Tests Run</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
-          PASSED=$(grep -oP 'Passed Tests</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
-          FAILED=$(grep -oP 'Failed Tests</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
-          SKIPPED=$(grep -oP 'Skipped Tests</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
-          
-          echo "VIs Analyzed:   $VIS_ANALYZED"
-          echo "Total Tests:    $TESTS_RUN"
-          echo "Passed:         $PASSED"
-          echo "Failed:         $FAILED"
-          echo "Skipped:        $SKIPPED"
-          echo ""
-          
-          if [ "$FAILED" -gt 0 ]; then
-            echo "=================================================="
-            echo " Failed Tests Summary"
-            echo "=================================================="
-            
-            # Extract failed test details
-            awk '
-              /<a name="fail">Failed Tests/,/<a name="err">Testing Errors/ {
-                if (match($0, /<b>([^<]+\.vi)<\/b>/, arr)) {
-                  if (vi_name) print ""
-                  vi_name = arr[1]
-                  printf "\n %s\n", vi_name
-                  print "---"
-                }
-                if (match($0, /<tr><td>([^<]+)<\/td><td>([^<]+)<\/td><\/tr>/, arr)) {
-                  test_name = arr[1]
-                  failure_msg = arr[2]
-                  printf " %s\n     → %s\n", test_name, failure_msg
-                }
-              }
-            ' vi-analyzer-report.htm
-            
-            echo ""
-            echo "=================================================="
-            echo "See full report in artifacts for complete details."
-            echo "=================================================="
-            exit $VIA_EXIT_CODE
-          else
-            echo " All tests passed!"
-            echo "=================================================="
-          fi
-
-          exit $VIA_EXIT_CODE
+          chmod +x .github/workflows/parse-via-report.sh
+          ./.github/workflows/parse-via-report.sh "$VIA_EXIT_CODE"
 
       - name: Upload VI Analyzer Report
         uses: actions/upload-artifact@v4
