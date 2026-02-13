@@ -71,19 +71,22 @@ jobs:
       - name: Run VI Analyzer tests
         if: steps.check-config.outputs.config_exists == 'true'
         run: |
+          set +e  # Disable exit on error temporarily
+
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             nationalinstruments/labview:2025q3patch1-linux \
             bash -c "cd /workspace && chmod +x .github/workflows/run-via.sh && ./.github/workflows/run-via.sh"
-      
-      - name: Parse and Display VI Analyzer Results
-        if: steps.check-config.outputs.config_exists == 'true' && always()
-        run: |
+
+          VIA_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
+    
           if [ ! -f "vi-analyzer-report.htm" ]; then
             echo "No VI Analyzer report found"
-            exit 0
+            exit $VIA_EXIT_CODE
           fi
           
+          echo ""
           echo "=================================================="
           echo " VI Analyzer Results"
           echo "=================================================="
@@ -96,11 +99,11 @@ jobs:
           FAILED=$(grep -oP 'Failed Tests</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
           SKIPPED=$(grep -oP 'Skipped Tests</td><td>\K[0-9]+' vi-analyzer-report.htm || echo "0")
           
-          echo "VIs Analyzed:    $VIS_ANALYZED"
-          echo "Total Tests:     $TESTS_RUN"
-          echo "Passed:       $PASSED"
-          echo "Failed:       $FAILED"
-          echo "Skipped:      $SKIPPED"
+          echo "VIs Analyzed:   $VIS_ANALYZED"
+          echo "Total Tests:    $TESTS_RUN"
+          echo "Passed:         $PASSED"
+          echo "Failed:         $FAILED"
+          echo "Skipped:        $SKIPPED"
           echo ""
           
           if [ "$FAILED" -gt 0 ]; then
@@ -129,11 +132,13 @@ jobs:
             echo "=================================================="
             echo "See full report in artifacts for complete details."
             echo "=================================================="
-            exit 1  # Fail the workflow if tests failed
+            exit $VIA_EXIT_CODE
           else
             echo " All tests passed!"
             echo "=================================================="
           fi
+
+          exit $VIA_EXIT_CODE
 
       - name: Upload VI Analyzer Report
         uses: actions/upload-artifact@v4
