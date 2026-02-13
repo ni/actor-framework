@@ -58,12 +58,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Read template XML and prepare output
 cp "$TEMPLATE_PATH" "$OUTPUT_PATH"
 
-# Use xmlstarlet or sed to modify XML
-# First, remove all existing Item nodes
-sed -i '/<Item>/,/<\/Item>/d' "$OUTPUT_PATH"
+OUTPUT_DIR=$(dirname "$OUTPUT_PATH")
+if [ -n "$OUTPUT_DIR" ] && [ ! -d "$OUTPUT_DIR" ]; then
+  mkdir -p "$OUTPUT_DIR"
+fi
 
-# Find the ItemsToAnalyze closing tag to insert before it
-ITEMS_SECTION=""
+# Create a temporary file for the items
+ITEMS_FILE=$(mktemp)
 
 for file in "${CHANGED_FILES[@]}"; do
   # Construct absolute path
@@ -74,22 +75,29 @@ for file in "${CHANGED_FILES[@]}"; do
   
   FORMATTED_PATH="\"$RELATIVE_PATH\""
   
-  # Build XML item
-  ITEMS_SECTION+="    <Item>
+  # Write XML item to temp file
+  cat >> "$ITEMS_FILE" << EOF
+    <Item>
       <Path>$FORMATTED_PATH</Path>
       <Removed>FALSE</Removed>
     </Item>
-"
+EOF
 done
 
-# Insert the items before the closing ItemsToAnalyze tag
-sed -i "s|</ItemsToAnalyze>|$ITEMS_SECTION  </ItemsToAnalyze>|" "$OUTPUT_PATH"
+# Use awk to insert the items into the template
+awk -v items_file="$ITEMS_FILE" '
+  /<\/ItemsToAnalyze>/ {
+    while ((getline line < items_file) > 0) {
+      print line
+    }
+    close(items_file)
+  }
+  /<Item>/,/<\/Item>/ { next }
+  { print }
+' "$TEMPLATE_PATH" > "$OUTPUT_PATH"
 
-# Ensure output directory exists
-OUTPUT_DIR=$(dirname "$OUTPUT_PATH")
-if [ -n "$OUTPUT_DIR" ] && [ ! -d "$OUTPUT_DIR" ]; then
-  mkdir -p "$OUTPUT_DIR"
-fi
+# Clean up temp file
+rm -f "$ITEMS_FILE"
 
 echo ""
 echo "Generated config at $OUTPUT_PATH with ${#CHANGED_FILES[@]} items."
