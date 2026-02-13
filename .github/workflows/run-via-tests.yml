@@ -108,21 +108,33 @@ jobs:
             echo " Failed Tests Summary"
             echo "=================================================="
             
-            # Extract failed test details (basic parsing)
-            grep -oP '<b>[^<]+\.vi</b>' vi-analyzer-report.htm | sed 's/<b>//g;s/<\/b>//g' | while read vi_name; do
-              echo ""
-              echo "$vi_name"
-            done
+            # Extract failed test details
+            awk '
+              /<a name="fail">Failed Tests/,/<a name="err">Testing Errors/ {
+                if (match($0, /<b>([^<]+\.vi)<\/b>/, arr)) {
+                  if (vi_name) print ""
+                  vi_name = arr[1]
+                  printf "\n %s\n", vi_name
+                  print "---"
+                }
+                if (match($0, /<tr><td>([^<]+)<\/td><td>([^<]+)<\/td><\/tr>/, arr)) {
+                  test_name = arr[1]
+                  failure_msg = arr[2]
+                  printf " %s\n     → %s\n", test_name, failure_msg
+                }
+              }
+            ' vi-analyzer-report.htm
             
             echo ""
-            echo "See full report in artifacts for details."
+            echo "=================================================="
+            echo "See full report in artifacts for complete details."
             echo "=================================================="
             exit 1  # Fail the workflow if tests failed
           else
-            echo "All tests passed!"
+            echo " All tests passed!"
             echo "=================================================="
           fi
-          
+
       - name: Upload VI Analyzer Report
         uses: actions/upload-artifact@v4
         if: always()  # Upload even if tests fail
