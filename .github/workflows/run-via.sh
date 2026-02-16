@@ -2,7 +2,10 @@
 set -e
 
 # VI Analyzer script for GitHub Actions
-ABSOLUTE_CONFIG="/workspace/generated-config.viancfg"
+
+# Accept config path as first argument, default to generated-config.viancfg
+CONFIG_PATH="${1:-generated-config.viancfg}"
+ABSOLUTE_CONFIG="/workspace/$CONFIG_PATH"
 ABSOLUTE_REPORT="/workspace/vi-analyzer-report.htm"
 LV_YEAR="${LV_YEAR:-2025}"
 LABVIEW_PATH="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/labview"
