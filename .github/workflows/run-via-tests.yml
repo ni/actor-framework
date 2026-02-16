@@ -89,13 +89,13 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             nationalinstruments/labview:2025q3patch1-linux \
-            bash -c "cd /workspace && chmod +x .github/workflows/run-via.sh && ./.github/workflows/run-via.sh '$CONFIG_PATH'"
+            bash -c "cd /workspace && chmod +x .github/scripts/run-via.sh && ./.github/scripts/run-via.sh '$CONFIG_PATH'"
 
           VIA_EXIT_CODE=$?
           set -e  # Re-enable exit on error
     
-          chmod +x .github/workflows/parse-via-report.sh
-          ./.github/workflows/parse-via-report.sh "$VIA_EXIT_CODE"
+          chmod +x .github/scripts/parse-via-report.sh
+          ./.github/scripts/parse-via-report.sh "$VIA_EXIT_CODE"
 
       - name: Upload VI Analyzer Report
         uses: actions/upload-artifact@v4
