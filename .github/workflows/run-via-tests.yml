@@ -43,7 +43,7 @@ jobs:
           labview_version: '2026q1-linux'
 
       - name: Upload VI Analyzer Report
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: vi-analyzer-report
