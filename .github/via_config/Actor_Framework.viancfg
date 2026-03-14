@@ -2,11 +2,11 @@
 <Config>
 <FileFormatVersion>1</FileFormatVersion>
 <AnalyzeProject>FALSE</AnalyzeProject>
-<ProjectPath>""</ProjectPath>
+<ProjectPath>"/"</ProjectPath>
 <TargetIndex>0</TargetIndex>
 <ItemsToAnalyze>
 	<Item>
-		<Path>"."</Path>
+		<Path>"../.."</Path>
 		<Removed>FALSE</Removed>
 	</Item>
 </ItemsToAnalyze>
