@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0  # Fetch all history
 
       - name: Run VI Analyzer tests
-        uses: KSharma-NI/open-source/via-lv-docker@users/krishsha/via-lv-docker
+        uses: ni/open-source/via-lv-docker@actions
         with:
           config_path: ${{ github.event_name == 'workflow_dispatch' && '.github/via_config/Actor_Framework.viancfg' || '' }}
           base_branch: origin/${{ github.event.pull_request.base.ref || 'develop' }}
