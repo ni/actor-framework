@@ -1,0 +1,51 @@
+name: Run VIA tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - release/*
+      - feature/*
+      - hotfix/*
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+  push:
+    branches:
+      - main
+      - develop
+      - release/*
+      - hotfix/*
+      - feature/*
+
+  workflow_dispatch:
+
+jobs:
+  run-via-tests:
+    name: Run VI Analyzer tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Fetch all history
+
+      - name: Run VI Analyzer tests
+        uses: ni/open-source/via-lv-docker@actions
+        with:
+          config_path: ${{ github.event_name == 'workflow_dispatch' && '.github/via_config/Actor_Framework.viancfg' || '' }}
+          base_branch: origin/${{ github.event.pull_request.base.ref || 'develop' }}
+          labview_version: 'latest-linux'
+
+      - name: Upload VI Analyzer Report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: vi-analyzer-report
+          path: vi-analyzer-report.htm
+          retention-days: 7
