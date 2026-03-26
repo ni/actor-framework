@@ -1,0 +1,22 @@
+name: Create Distribution Artifact
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-artifact:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      
+      - name: Create framework artifact structure
+        uses: ./.github/actions/create-framework-artifact
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: actor-framework-distribution
+          path: artifact-staging/
+          retention-days: 7
