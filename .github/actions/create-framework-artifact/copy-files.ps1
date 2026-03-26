@@ -1,3 +1,7 @@
+param(
+  [string]$ExcludePaths = ''
+)
+
 # Create artifact staging directory
 $stagingDir = "artifact-staging"
 New-Item -ItemType Directory -Force -Path $stagingDir
@@ -9,6 +13,25 @@ New-Item -ItemType Directory -Force -Path "$stagingDir\menus"
 # Define exclusion patterns
 $excludeExtensions = @('*.lvproj', '*.vipb', '*.aliases', '*.lvlps')
 
+# Parse additional path exclusions
+$excludePathsList = @()
+if ($ExcludePaths) {
+  $excludePathsList = $ExcludePaths -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+}
+
+# Helper function to check if path should be excluded
+function Test-PathExcluded {
+  param($FilePath)
+  
+  foreach ($excludePath in $excludePathsList) {
+    $normalizedExclude = $excludePath -replace '/', '\'
+    if ($FilePath -like "*$normalizedExclude*") {
+      return $true
+    }
+  }
+  return $false
+}
+
 # Helper function to copy files with exclusions
 function Copy-WithExclusions {
   param($SourcePath, $DestPath, $Label)
@@ -16,12 +39,20 @@ function Copy-WithExclusions {
   Write-Host "Copying $Label"
   Get-ChildItem -Path $SourcePath -Recurse -File | ForEach-Object {
     $excluded = $false
+    
+    # Check file extension exclusions
     foreach ($pattern in $excludeExtensions) {
       if ($_.Name -like $pattern) {
         Write-Warning "Excluding file: $($_.FullName)"
         $excluded = $true
         break
       }
+    }
+    
+    # Check path exclusions
+    if (-not $excluded -and (Test-PathExcluded -FilePath $_.FullName)) {
+      Write-Warning "Excluding path: $($_.FullName)"
+      $excluded = $true
     }
     
     if (-not $excluded) {

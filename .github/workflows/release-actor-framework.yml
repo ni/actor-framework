@@ -3,7 +3,7 @@ name: Create Release
 on:
   push:
     tags:
-      - 'v*.*.*.*'
+      - 'v*.*.*'
 
 jobs:
   create-release:
@@ -15,6 +15,9 @@ jobs:
       
       - name: Create framework artifact structure
         uses: ./.github/actions/create-framework-artifact
+        with:
+          exclude-files: |
+            Providers\Install Support
       
       - name: Create ZIP archive
         shell: pwsh

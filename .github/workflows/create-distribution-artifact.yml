@@ -13,6 +13,9 @@ jobs:
       
       - name: Create framework artifact structure
         uses: ./.github/actions/create-framework-artifact
+        with:
+          exclude-paths: |
+            Providers\Install Support
       
       - name: Upload artifact
         uses: actions/upload-artifact@v6
