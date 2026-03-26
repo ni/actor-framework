@@ -1,0 +1,28 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*.*'
+
+jobs:
+  create-release:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      
+      - name: Create framework artifact structure
+        uses: ./.github/actions/create-framework-artifact
+      
+      - name: Create ZIP archive
+        shell: pwsh
+        run: |
+          Compress-Archive -Path artifact-staging\* -DestinationPath actor-framework-distribution.zip
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: actor-framework-distribution.zip
+          generate_release_notes: true
