@@ -16,7 +16,7 @@ jobs:
       - name: Create framework artifact structure
         uses: ./.github/actions/create-framework-artifact
         with:
-          exclude-files: |
+          exclude-paths: |
             Providers\Install Support
       
       - name: Create ZIP archive
