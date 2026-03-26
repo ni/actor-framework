@@ -1,0 +1,9 @@
+name: 'Create Framework Artifact'
+description: 'Prepares Actor Framework files in the correct directory structure for distribution'
+runs:
+  using: 'composite'
+  steps:
+    - name: Prepare artifact structure
+      shell: pwsh
+      run: |
+        & "${{ github.action_path }}/copy-files.ps1"
