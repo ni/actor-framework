@@ -6,20 +6,23 @@ on:
       - 'v*.*.*'
 
 jobs:
+  create-artifact:
+    uses: ./.github/workflows/create-distribution-artifact.yml
+    with:
+      upload-artifact: true
+  
   create-release:
+    needs: create-artifact
     runs-on: windows-latest
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-      
-      - name: Create framework artifact structure
-        uses: ./.github/actions/create-framework-artifact
+      - name: Download artifact
+        uses: actions/download-artifact@v7
         with:
-          exclude-paths: |
-            Providers\Install Support
+          name: actor-framework-distribution
+          path: artifact-staging
       
-      - name: Create ZIP archive
+      - name: Create actor-framework-distribution.zip
         shell: pwsh
         run: |
           Compress-Archive -Path artifact-staging\* -DestinationPath actor-framework-distribution.zip
