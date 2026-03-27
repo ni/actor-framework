@@ -1,5 +1,5 @@
 param(
-  [string]$ExcludePaths = ''
+  [string]$ExclusionFile = "$PSScriptRoot\..\config\artifact-exclusions.txt"
 )
 
 # Create artifact staging directory
@@ -13,10 +13,17 @@ New-Item -ItemType Directory -Force -Path "$stagingDir\menus"
 # Define exclusion patterns
 $excludeExtensions = @('*.lvproj', '*.vipb', '*.aliases', '*.lvlps')
 
-# Parse additional path exclusions
+# Parse path exclusions from file
 $excludePathsList = @()
-if ($ExcludePaths) {
-  $excludePathsList = $ExcludePaths -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+if (Test-Path $ExclusionFile) {
+  Write-Host "Reading exclusions from: $ExclusionFile"
+  $excludePathsList = Get-Content $ExclusionFile | 
+    Where-Object { $_ -notmatch '^\s*#' -and $_ -notmatch '^\s*$' } |
+    ForEach-Object { $_.Trim() }
+  
+  Write-Host "Loaded $($excludePathsList.Count) exclusion path(s)"
+} else {
+  Write-Warning "Exclusion file not found: $ExclusionFile"
 }
 
 # Helper function to check if path should be excluded

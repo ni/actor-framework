@@ -27,7 +27,7 @@ jobs:
       - name: Create framework artifact structure
         shell: pwsh
         run: |
-          & "${{ github.workspace }}\pipeline\scripts\Create_Distribution_Artifact.ps1" -ExcludePaths "Providers\Install Support"
+          & "${{ github.workspace }}\pipeline\scripts\Create_Distribution_Artifact.ps1"
       
       - name: Upload artifact
         if: ${{ inputs.upload-artifact }}

@@ -1,0 +1,9 @@
+# Artifact Exclusion List
+# One path per line, relative to repository root
+# Lines starting with # are comments
+
+# Installation support files
+Providers\Install Support
+
+# Add future exclusions here
+# Examples\TestData
