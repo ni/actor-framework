@@ -1,0 +1,38 @@
+name: Create Distribution Artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload-artifact:
+        description: 'Upload as GitHub artifact'
+        required: false
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      upload-artifact:
+        description: 'Upload as GitHub artifact'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  create-artifact:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      
+      - name: Create framework artifact structure
+        shell: pwsh
+        run: |
+          & "${{ github.workspace }}\pipeline\scripts\Create_Distribution_Artifact.ps1"
+      
+      - name: Upload artifact
+        if: ${{ inputs.upload-artifact }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: actor-framework-distribution
+          path: artifact-staging/
+          retention-days: 7
