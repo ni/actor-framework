@@ -23,21 +23,163 @@ on:
       - feature/*
 
   workflow_dispatch:
-
+    inputs:
+      labview_version:
+        description: 'LabVIEW version (e.g., 2025q3)'
+        required: false
+        type: string
+        default: '2025q3'
+      labview_bitness:
+        description: 'LabVIEW bitness'
+        required: false
+        type: choice
+        options:
+          - '32'
+          - '64'
+        default: '32'
 jobs:
   run-unit-tests:
-    name: Run unit tests
-    runs-on: [self-hosted, iconeditor]
-
+    runs-on: windows-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      - name: Run unit tests
+      - name: Resolve LabVIEW version info
+        id: lv_info
         shell: pwsh
-        working-directory: pipeline/scripts
-
         run: |
-          $repoRoot = $env:GITHUB_WORKSPACE
-          $scriptsFolder = Join-Path $repoRoot 'pipeline/scripts'
-          .\unit_tests.ps1 -RelativePath $repoRoot -AbsolutePathScripts $scriptsFolder
+          $versionKey = "${{ inputs.labview_version || '2025q3' }}"
+          $bitness = "${{ inputs.labview_bitness || '32' }}"
+          
+          $configPath = "${{ github.workspace }}\pipeline\config\labview-versions.json"
+          $config = Get-Content $configPath | ConvertFrom-Json
+          
+          if (-not $config.versions.$versionKey) {
+            Write-Error "Unknown LabVIEW version: $versionKey"
+            exit 1
+          }
+          
+          $versionInfo = $config.versions.$versionKey
+          $bitnessInfo = $versionInfo.$bitness
+          
+          if (-not $bitnessInfo.iso_url) {
+            Write-Error "No ISO URL found for $versionKey $bitness-bit"
+            exit 1
+          }
+          
+          Write-Host "Resolved LabVIEW version: $($versionInfo.lv_version) ($bitness-bit)"
+          Write-Host "ISO URL: $($bitnessInfo.iso_url)"
+          Write-Host "Package ID: $($bitnessInfo.package_id)"
+          
+          echo "lv_version=$($versionInfo.lv_version)" >> $env:GITHUB_OUTPUT
+          echo "lv_bitness=$bitness" >> $env:GITHUB_OUTPUT
+          echo "iso_url=$($bitnessInfo.iso_url)" >> $env:GITHUB_OUTPUT
+          echo "package_id=$($bitnessInfo.package_id)" >> $env:GITHUB_OUTPUT
+      
+      # Step 1: Setup NIPM
+      - name: Setup NI Package Manager
+        uses: ni/open-source/setup-nipm@actions
+        with:
+          log_level: 'DEBUG'
+      
+      # Step 2: Setup LabVIEW
+      - name: Setup LabVIEW
+        uses: ni/open-source/setup-labview@actions
+        with:
+          labview_iso_url: ${{ steps.lv_info.outputs.iso_url }}
+          timeout_seconds: 1800
+          serial_number: ${{ secrets.LABVIEW_SERIAL_NUMBER }}
+          package_id: ${{ steps.lv_info.outputs.package_id }}
+          log_level: 'DEBUG'
+      
+      # Step 3: Configure LabVIEW (add after activation)
+      - name: Configure LabVIEW
+        uses: ni/open-source/configure-labview@actions
+        with:
+          labview_version: ${{ steps.lv_info.outputs.lv_version }}
+          log_level: 'DEBUG'
+
+      # Step 4: Setup config files for VIPM
+      - name: Setup VIPM Configuration
+        shell: pwsh
+        run: |
+          Write-Host "=== Setting up VIPM Configuration Files ==="
+          $jkiDir = "C:\ProgramData\JKI"
+          $vipmDir = "C:\ProgramData\JKI\VIPM"
+          
+          # Create directories
+          if (-not (Test-Path $jkiDir)) {
+            New-Item -ItemType Directory -Path $jkiDir -Force | Out-Null
+            Write-Host "Created JKI directory"
+          } else {
+            Write-Host "JKI directory already exists"
+          }
+          
+          if (-not (Test-Path $vipmDir)) {
+            New-Item -ItemType Directory -Path $vipmDir -Force | Out-Null
+            Write-Host "Created VIPM directory"
+          } else {
+            Write-Host "VIPM directory already exists"
+          }
+          
+          # Write jki.conf from secret
+          $jkiConfPath = Join-Path $jkiDir "jki.conf"
+          $jkiConf = @'
+          ${{ secrets.JKI_CONF }}
+          '@
+          Set-Content -Path $jkiConfPath -Value $jkiConf -Force -Encoding UTF8
+          Write-Host "Created jki.conf"
+          
+          # Write Settings.ini from secret
+          $settingsIniPath = Join-Path $vipmDir "Settings.ini"
+          $settingsIni = @'
+          ${{ secrets.VIPM_SETTINGS_INI }}
+          '@
+          Set-Content -Path $settingsIniPath -Value $settingsIni -Force -Encoding UTF8
+          Write-Host "Created Settings.ini"
+          
+          # Verify files exist`
+          if ((Test-Path $jkiConfPath) -and (Test-Path $settingsIniPath)) {
+            Write-Host "VIPM configuration files created successfully"
+          } else {
+            Write-Error "Failed to create VIPM configuration files"
+          }
+      
+      # Step 6: Setup LUnit for G-CLI
+      - name: Setup LUnit for G-CLI
+        uses: ni/open-source/setup-lunit@actions
+        with:
+          lv_version: ${{ steps.lv_info.outputs.lv_version }}
+          lv_bitness: ${{ steps.lv_info.outputs.lv_bitness }}
+          log_level: 'DEBUG'
+
+      # Step 7: Verify LUnit installation
+      - name: Verify LUnit and VIPM installation
+        shell: pwsh
+        env:
+          LV_VERSION: ${{ steps.lv_info.outputs.lv_version }}
+          LV_BITNESS: ${{ steps.lv_info.outputs.lv_bitness }}
+        run: |
+          Write-Host "=== Verifying VIPM Installation ==="
+          
+          $vipmExe = "C:\Program Files\JKI\VI Package Manager\support\vipm.exe"
+          if (Test-Path $vipmExe) {
+            Write-Host "VIPM found at $vipmExe"
+            
+            # Check VIPM version
+            & $vipmExe --version
+          } else {
+            Write-Error "VIPM not found"
+          }
+          
+          Write-Host "`n=== Checking Installed Packages ==="
+          & $vipmExe list --installed --labview-version $env:LV_VERSION --labview-bitness $env:LV_BITNESS
+      
+      - name: Run LabVIEW Unit Tests
+        uses: KSharma-NI/open-source/run-unit-tests@users/krishsha/run-unit-tests
+        with:
+          minimum_supported_lv_version: ${{ steps.lv_info.outputs.lv_version }}
+          supported_bitness: ${{ steps.lv_info.outputs.lv_bitness }}
+          project_path: 'Core\Actor Framework Core.lvproj'
+          open_project_before_run: true
+          log_level: 'DEBUG'
