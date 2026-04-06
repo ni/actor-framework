@@ -1,0 +1,162 @@
+name: CI Pipeline
+run-name: "CI ${{ github.sha }} (#${{ github.run_id }}.${{ github.run_attempt }})"
+
+concurrency:
+  group: ci-pipeline-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - release/*
+      - feature/*
+      - hotfix/*
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+  push:
+    branches:
+      - main
+      - develop
+      - release/*
+      - hotfix/*
+      - feature/*
+
+  workflow_dispatch:
+
+jobs:
+  via-tests:
+    name: Run VI Analyzer tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run VI Analyzer tests
+        uses: ni/open-source/via-lv-docker@actions
+        with:
+          config_path: ${{ github.event_name == 'workflow_dispatch' && '.github/via_config/Actor_Framework.viancfg' || '' }}
+          base_branch: origin/${{ github.event.pull_request.base.ref || 'develop' }}
+          labview_version: 'latest-linux'
+
+      - name: Upload VI Analyzer Report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: vi-analyzer-report
+          path: vi-analyzer-report.htm
+          retention-days: 7 
+ 
+  create-artifact:
+    name: Create distribution artifact
+    needs: via-tests
+    uses: ./.github/workflows/create-distribution-artifact.yml
+    with:
+      upload-artifact: true
+
+  install-into-labview:
+    name: Install distribution into LabVIEW 2026 container
+    needs: create-artifact
+    runs-on: windows-latest
+
+    steps:
+      - name: Download distribution artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: actor-framework-distribution
+          path: distribution
+
+      - name: Show downloaded artifact contents
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "${{ github.workspace }}\distribution" -Recurse
+
+      - name: Pull LabVIEW container image
+        shell: pwsh
+        run: |
+          docker pull nationalinstruments/labview:2026q1-windows
+
+      - name: Create and start container
+        shell: pwsh
+        run: |
+          docker create --name af-lv2026 `
+            nationalinstruments/labview:2026q1-windows `
+            powershell -NoLogo -NoProfile -Command "Start-Sleep -Seconds 3600"
+
+          docker start af-lv2026
+
+      - name: Copy distribution into container
+        shell: pwsh
+        run: |
+          docker cp "${{ github.workspace }}\distribution\." "af-lv2026:C:\staging"
+
+      - name: Overlay files into LabVIEW 2026 and mass compile
+        shell: pwsh
+        run: |
+          $script = @'
+          $lvRoot = "C:\Program Files\National Instruments\LabVIEW 2026"
+          $labviewCli = "C:\Program Files (x86)\National Instruments\Shared\LabVIEW CLI\LabVIEWCLI.exe"
+          $stagingRoot = "C:\staging"
+          $logRoot = "C:\mass-compile-logs"
+          $folders = @("menus", "vi.lib", "resource")
+
+          New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
+
+          foreach ($folder in $folders) {
+            $source = Join-Path $stagingRoot $folder
+            $destination = Join-Path $lvRoot $folder
+
+            if (Test-Path $source) {
+              Write-Host "Overlaying $source -> $destination"
+              New-Item -ItemType Directory -Path $destination -Force | Out-Null
+              Copy-Item -Path (Join-Path $source '*') -Destination $destination -Recurse -Force
+
+              $logFile = Join-Path $logRoot "$($folder -replace '[\\/:*?""<>|]', '_')-masscompile.log"
+
+              Write-Host "Mass compiling $destination"
+              & $labviewCli `
+                -OperationName MassCompile `
+                -DirectoryToCompile $destination `
+                -MassCompileLogFile $logFile `
+                -Headless
+
+              if ($LASTEXITCODE -ne 0) {
+                throw "Mass compile failed for $destination with exit code $LASTEXITCODE"
+              }
+            }
+          }
+          '@
+
+          $tempScript = Join-Path $env:RUNNER_TEMP "copy-and-masscompile.ps1"
+          Set-Content -Path $tempScript -Value $script
+          docker cp $tempScript "af-lv2026:C:\copy-and-masscompile.ps1"
+          docker exec af-lv2026 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\copy-and-masscompile.ps1
+
+      - name: Copy mass compile logs from container
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "${{ github.workspace }}\mass-compile-logs" -Force | Out-Null
+          docker cp "af-lv2026:C:\mass-compile-logs\." "${{ github.workspace }}\mass-compile-logs"
+
+      - name: Upload mass compile logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mass-compile-logs
+          path: mass-compile-logs
+          retention-days: 7
+
+      - name: Cleanup container
+        if: always()
+        shell: pwsh
+        run: |
+          docker rm -f af-lv2026
