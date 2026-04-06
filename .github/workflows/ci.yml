@@ -182,7 +182,12 @@ jobs:
 
           $tempScript = Join-Path $env:RUNNER_TEMP "copy-and-masscompile.ps1"
           Set-Content -Path $tempScript -Value $script
-          docker cp $tempScript "$env:AF_CONTAINER_NAME:C:\copy-and-masscompile.ps1"
+          docker cp $tempScript "$($env:AF_CONTAINER_NAME):C:\copy-and-masscompile.ps1"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to copy script into container"
+          }
+
           docker exec `
             -e LV_YEAR="$env:LV_YEAR" `
             $env:AF_CONTAINER_NAME `
