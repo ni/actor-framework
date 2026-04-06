@@ -120,6 +120,9 @@ jobs:
         run: |
           docker cp "${{ github.workspace }}\distribution" "$($env:AF_CONTAINER_NAME):C:\staging"
 
+          # Verify what was copied into the container
+          docker exec $($env:AF_CONTAINER_NAME) powershell -Command "Get-ChildItem -Path C:\staging -Recurse -Depth 3"
+
       - name: Overlay files into LabVIEW directory and mass compile
         shell: pwsh
         run: |
