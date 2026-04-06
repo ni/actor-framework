@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Download distribution artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: actor-framework-distribution
           path: distribution
@@ -110,14 +110,6 @@ jobs:
 
           # Only these folders will be mass compiled
           $compileTargets = @(
-            "menus",
-            "resource\AFDebug",
-            "resource\Framework\Providers\ActorMessageMaker",
-            "resource\Framework\Providers\AddActor",
-            "resource\Framework\Providers\AddActorInterface",
-            "resource\Framework\Providers\GProviders",
-            "resource\Framework\Providers\MessageMakerProvider",
-            "resource\Framework\Providers\MessageRescripter",
             "vi.lib\ActorFramework"
           )
 
@@ -127,7 +119,6 @@ jobs:
 
           New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 
-          # Overlay copy: overwrite common files, keep unrelated files untouched
           foreach ($folder in $overlayFolders) {
             $source = Join-Path $stagingRoot $folder
             $destination = Join-Path $lvRoot $folder
@@ -173,7 +164,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "${{ github.workspace }}\mass-compile-logs" -Force | Out-Null
-          docker cp "af-lv2026:C:\mass-compile-logs\." "${{ github.workspace }}\mass-compile-logs"
+          docker cp "af-lv2026:C:\mass-compile-logs" "${{ github.workspace }}\mass-compile-logs"
 
       - name: Upload mass compile logs
         if: always()
