@@ -106,11 +106,29 @@ jobs:
           $labviewCli = "C:\Program Files (x86)\National Instruments\Shared\LabVIEW CLI\LabVIEWCLI.exe"
           $stagingRoot = "C:\staging"
           $logRoot = "C:\mass-compile-logs"
-          $folders = @("menus", "vi.lib", "resource")
+          $overlayFolders = @("menus", "vi.lib", "resource")
+
+          # Only these folders will be mass compiled
+          $compileTargets = @(
+            "menus",
+            "resource\AFDebug",
+            "resource\Framework\Providers\ActorMessageMaker",
+            "resource\Framework\Providers\AddActor",
+            "resource\Framework\Providers\AddActorInterface",
+            "resource\Framework\Providers\GProviders",
+            "resource\Framework\Providers\MessageMakerProvider",
+            "resource\Framework\Providers\MessageRescripter",
+            "vi.lib\ActorFramework"
+          )
+
+          if (-not (Test-Path $labviewCli)) {
+            throw "LabVIEWCLI not found at: $labviewCli"
+          }
 
           New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 
-          foreach ($folder in $folders) {
+          # Overlay copy: overwrite common files, keep unrelated files untouched
+          foreach ($folder in $overlayFolders) {
             $source = Join-Path $stagingRoot $folder
             $destination = Join-Path $lvRoot $folder
 
@@ -118,19 +136,29 @@ jobs:
               Write-Host "Overlaying $source -> $destination"
               New-Item -ItemType Directory -Path $destination -Force | Out-Null
               Copy-Item -Path (Join-Path $source '*') -Destination $destination -Recurse -Force
+            }
+          }
 
-              $logFile = Join-Path $logRoot "$($folder -replace '[\\/:*?""<>|]', '_')-masscompile.log"
+          # Mass compile only selected folders
+          foreach ($relativeTarget in $compileTargets) {
+            $targetPath = Join-Path $lvRoot $relativeTarget
+            if (-not (Test-Path $targetPath)) {
+              Write-Warning "Mass compile target not found, skipping: $targetPath"
+              continue
+            }
 
-              Write-Host "Mass compiling $destination"
-              & $labviewCli `
-                -OperationName MassCompile `
-                -DirectoryToCompile $destination `
-                -MassCompileLogFile $logFile `
-                -Headless
+            $safeName = $relativeTarget -replace '[\\/:*?""<>|]', '_'
+            $logFile = Join-Path $logRoot "$safeName-masscompile.log"
 
-              if ($LASTEXITCODE -ne 0) {
-                throw "Mass compile failed for $destination with exit code $LASTEXITCODE"
-              }
+            Write-Host "Mass compiling $targetPath"
+            & $labviewCli `
+              -OperationName MassCompile `
+              -DirectoryToCompile $targetPath `
+              -MassCompileLogFile $logFile `
+              -Headless
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Mass compile failed for $targetPath with exit code $LASTEXITCODE"
             }
           }
           '@
