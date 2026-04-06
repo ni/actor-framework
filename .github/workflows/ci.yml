@@ -1,6 +1,9 @@
 name: CI Pipeline
 run-name: "CI ${{ github.sha }} (#${{ github.run_id }}.${{ github.run_attempt }})"
 
+env:
+  LABVIEW_IMAGE: nationalinstruments/labview:latest-windows
+
 concurrency:
   group: ci-pipeline-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -63,7 +66,7 @@ jobs:
       upload-artifact: true
 
   install-into-labview:
-    name: Install distribution into LabVIEW 2026 container
+    name: Mass Compile Actor Framework VIs
     needs: create-artifact
     runs-on: windows-latest
 
@@ -82,27 +85,46 @@ jobs:
       - name: Pull LabVIEW container image
         shell: pwsh
         run: |
-          docker pull nationalinstruments/labview:2026q1-windows
+          docker pull $env:LABVIEW_IMAGE
+
+      - name: Resolve LabVIEW image metadata
+        shell: pwsh
+        run: |
+          $imageEnv = docker image inspect --format '{{json .Config.Env}}' $env:LABVIEW_IMAGE | ConvertFrom-Json
+          $lvYearEntry = $imageEnv | Where-Object { $_ -like 'LV_YEAR=*' } | Select-Object -First 1
+
+          if (-not $lvYearEntry) {
+            throw "LV_YEAR was not found in image metadata for $env:LABVIEW_IMAGE"
+          }
+
+          $lvYear = $lvYearEntry.Substring("LV_YEAR=".Length)
+          $containerName = "af-lv$lvYear-${{ github.run_id }}"
+
+          "LV_YEAR=$lvYear" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "AF_CONTAINER_NAME=$containerName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          Write-Host "Resolved LV_YEAR=$lvYear"
+          Write-Host "Resolved AF_CONTAINER_NAME=$containerName"
 
       - name: Create and start container
         shell: pwsh
         run: |
-          docker create --name af-lv2026 `
-            nationalinstruments/labview:2026q1-windows `
+          docker create --name $env:AF_CONTAINER_NAME `
+            $env:LABVIEW_IMAGE `
             powershell -NoLogo -NoProfile -Command "Start-Sleep -Seconds 3600"
 
-          docker start af-lv2026
+          docker start $env:AF_CONTAINER_NAME
 
       - name: Copy distribution into container
         shell: pwsh
         run: |
-          docker cp "${{ github.workspace }}\distribution\." "af-lv2026:C:\staging"
+          docker cp "${{ github.workspace }}\distribution\." "$env:AF_CONTAINER_NAME:C:\staging"
 
-      - name: Overlay files into LabVIEW 2026 and mass compile
+      - name: Overlay files into LabVIEW directory and mass compile
         shell: pwsh
         run: |
           $script = @'
-          $lvRoot = "C:\Program Files\National Instruments\LabVIEW 2026"
+          $lvRoot = "C:\Program Files\National Instruments\LabVIEW $env:LV_YEAR"
           $labviewCli = "C:\Program Files (x86)\National Instruments\Shared\LabVIEW CLI\LabVIEWCLI.exe"
           $stagingRoot = "C:\staging"
           $logRoot = "C:\mass-compile-logs"
@@ -112,6 +134,10 @@ jobs:
           $compileTargets = @(
             "vi.lib\ActorFramework"
           )
+
+          if (-not (Test-Path $lvRoot)) {
+            throw "LabVIEW root not found at: $lvRoot"
+          }
 
           if (-not (Test-Path $labviewCli)) {
             throw "LabVIEWCLI not found at: $labviewCli"
@@ -156,15 +182,18 @@ jobs:
 
           $tempScript = Join-Path $env:RUNNER_TEMP "copy-and-masscompile.ps1"
           Set-Content -Path $tempScript -Value $script
-          docker cp $tempScript "af-lv2026:C:\copy-and-masscompile.ps1"
-          docker exec af-lv2026 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\copy-and-masscompile.ps1
+          docker cp $tempScript "$env:AF_CONTAINER_NAME:C:\copy-and-masscompile.ps1"
+          docker exec `
+            -e LV_YEAR="$env:LV_YEAR" `
+            $env:AF_CONTAINER_NAME `
+            powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\copy-and-masscompile.ps1
 
       - name: Copy mass compile logs from container
         if: always()
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "${{ github.workspace }}\mass-compile-logs" -Force | Out-Null
-          docker cp "af-lv2026:C:\mass-compile-logs" "${{ github.workspace }}\mass-compile-logs"
+          docker cp "$env:AF_CONTAINER_NAME:C:\mass-compile-logs" "${{ github.workspace }}\mass-compile-logs"
 
       - name: Upload mass compile logs
         if: always()
@@ -178,4 +207,4 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          docker rm -f af-lv2026
+          docker rm -f $env:AF_CONTAINER_NAME
