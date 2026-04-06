@@ -98,7 +98,7 @@ jobs:
           }
 
           $lvYear = $lvYearEntry.Substring("LV_YEAR=".Length)
-          $containerName = "af-lv$lvYear-${{ github.run_id }}"
+          $containerName = "af-lv$lvYear"
 
           "LV_YEAR=$lvYear" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "AF_CONTAINER_NAME=$containerName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -118,7 +118,7 @@ jobs:
       - name: Copy distribution into container
         shell: pwsh
         run: |
-          docker cp "${{ github.workspace }}\distribution\." "$env:AF_CONTAINER_NAME:C:\staging"
+          docker cp "${{ github.workspace }}\distribution" "$($env:AF_CONTAINER_NAME):C:\staging"
 
       - name: Overlay files into LabVIEW directory and mass compile
         shell: pwsh
@@ -126,7 +126,7 @@ jobs:
           $script = @'
           $lvRoot = "C:\Program Files\National Instruments\LabVIEW $env:LV_YEAR"
           $labviewCli = "C:\Program Files (x86)\National Instruments\Shared\LabVIEW CLI\LabVIEWCLI.exe"
-          $stagingRoot = "C:\staging"
+          $stagingRoot = "C:\staging\distribution"
           $logRoot = "C:\mass-compile-logs"
           $overlayFolders = @("menus", "vi.lib", "resource")
 
@@ -193,7 +193,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path "${{ github.workspace }}\mass-compile-logs" -Force | Out-Null
-          docker cp "$env:AF_CONTAINER_NAME:C:\mass-compile-logs" "${{ github.workspace }}\mass-compile-logs"
+          docker cp "$($env:AF_CONTAINER_NAME):C:\mass-compile-logs" "${{ github.workspace }}\mass-compile-logs"
 
       - name: Upload mass compile logs
         if: always()
