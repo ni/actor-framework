@@ -1,27 +1,6 @@
 name: Run VIA tests
 
 on:
-  pull_request:
-    branches:
-      - main
-      - develop
-      - release/*
-      - feature/*
-      - hotfix/*
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
-
-  push:
-    branches:
-      - main
-      - develop
-      - release/*
-      - hotfix/*
-      - feature/*
-
   workflow_dispatch:
 
 jobs:
