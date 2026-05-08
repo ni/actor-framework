@@ -48,6 +48,7 @@ body:
       label: "🧰 LabVIEW Version Used"
       description: "Select the version of LabVIEW you used to run this test."
       options:
+        - "LabVIEW 2025 Q3 Beta"
         - "LabVIEW 2025 Q1"
         - "LabVIEW 2024 Q3"
         - "LabVIEW 2024 Q1"

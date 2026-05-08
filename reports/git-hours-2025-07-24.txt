@@ -1,0 +1,37 @@
+{
+  "156447188+svelderrainruiz@users.noreply.github.com": {
+    "name": "156447188+svelderrainruiz@users.noreply.github.com",
+    "hours": 20,
+    "commits": 17
+  },
+  "Elijah.Kerry@gmail.com": {
+    "name": "Elijah.Kerry@gmail.com",
+    "hours": 0,
+    "commits": 1
+  },
+  "allencsmith149@yahoo.com": {
+    "name": "allencsmith149@yahoo.com",
+    "hours": 44,
+    "commits": 38
+  },
+  "niACS@users.noreply.github.com": {
+    "name": "niACS@users.noreply.github.com",
+    "hours": 0,
+    "commits": 1
+  },
+  "sergio.velderrain@emerson.com": {
+    "name": "sergio.velderrain@emerson.com",
+    "hours": 16,
+    "commits": 14
+  },
+  "sergio.velderrain@ni.com": {
+    "name": "sergio.velderrain@ni.com",
+    "hours": 50,
+    "commits": 103
+  },
+  "total": {
+    "name": "",
+    "hours": 130,
+    "commits": 174
+  }
+}

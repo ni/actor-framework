@@ -1,0 +1,215 @@
+name: CI Pipeline
+run-name: "CI ${{ github.sha }} (#${{ github.run_id }}.${{ github.run_attempt }})"
+
+env:
+  LABVIEW_IMAGE: nationalinstruments/labview:latest-windows
+
+concurrency:
+  group: ci-pipeline-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - release/*
+      - feature/*
+      - hotfix/*
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+  push:
+    branches:
+      - main
+      - develop
+      - release/*
+      - hotfix/*
+      - feature/*
+
+  workflow_dispatch:
+
+jobs:
+  via-tests:
+    name: Run VI Analyzer tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run VI Analyzer tests
+        uses: ni/open-source/via-lv-docker@actions
+        with:
+          config_path: ${{ github.event_name == 'workflow_dispatch' && '.github/via_config/Actor_Framework.viancfg' || '' }}
+          base_branch: origin/${{ github.event.pull_request.base.ref || 'develop' }}
+          labview_version: 'latest-linux'
+
+      - name: Upload VI Analyzer Report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: vi-analyzer-report
+          path: vi-analyzer-report.htm
+          retention-days: 7 
+ 
+  create-artifact:
+    name: Create distribution artifact
+    needs: via-tests
+    uses: ./.github/workflows/create-distribution-artifact.yml
+    with:
+      upload-artifact: true
+
+  install-into-labview:
+    name: Mass Compile Actor Framework VIs
+    needs: create-artifact
+    runs-on: windows-latest
+
+    steps:
+      - name: Download distribution artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: actor-framework-distribution
+          path: distribution
+
+      - name: Show downloaded artifact contents
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path "${{ github.workspace }}\distribution" -Recurse
+
+      - name: Pull LabVIEW container image
+        shell: pwsh
+        run: |
+          docker pull $env:LABVIEW_IMAGE
+
+      - name: Resolve LabVIEW image metadata
+        shell: pwsh
+        run: |
+          $imageEnv = docker image inspect --format '{{json .Config.Env}}' $env:LABVIEW_IMAGE | ConvertFrom-Json
+          $lvYearEntry = $imageEnv | Where-Object { $_ -like 'LV_YEAR=*' } | Select-Object -First 1
+
+          if (-not $lvYearEntry) {
+            throw "LV_YEAR was not found in image metadata for $env:LABVIEW_IMAGE"
+          }
+
+          $lvYear = $lvYearEntry.Substring("LV_YEAR=".Length)
+          $containerName = "af-lv$lvYear"
+
+          "LV_YEAR=$lvYear" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "AF_CONTAINER_NAME=$containerName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          Write-Host "Resolved LV_YEAR=$lvYear"
+          Write-Host "Resolved AF_CONTAINER_NAME=$containerName"
+
+      - name: Create and start container
+        shell: pwsh
+        run: |
+          docker create --name $env:AF_CONTAINER_NAME `
+            $env:LABVIEW_IMAGE `
+            powershell -NoLogo -NoProfile -Command "Start-Sleep -Seconds 3600"
+
+          docker start $env:AF_CONTAINER_NAME
+
+      - name: Copy distribution into container
+        shell: pwsh
+        run: |
+          docker cp "${{ github.workspace }}\distribution" "$($env:AF_CONTAINER_NAME):C:\staging"
+
+      - name: Overlay files into LabVIEW directory and mass compile
+        shell: pwsh
+        run: |
+          $script = @'
+          $lvRoot = "C:\Program Files\National Instruments\LabVIEW $env:LV_YEAR"
+          $labviewCli = "C:\Program Files (x86)\National Instruments\Shared\LabVIEW CLI\LabVIEWCLI.exe"
+          $stagingRoot = "C:\staging"
+          $logRoot = "C:\mass-compile-logs"
+          $overlayFolders = @("menus", "vi.lib", "resource")
+
+          # Only these folders will be mass compiled
+          $compileTargets = @(
+            "vi.lib\ActorFramework"
+          )
+
+          if (-not (Test-Path $lvRoot)) {
+            throw "LabVIEW root not found at: $lvRoot"
+          }
+
+          if (-not (Test-Path $labviewCli)) {
+            throw "LabVIEWCLI not found at: $labviewCli"
+          }
+
+          New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
+
+          foreach ($folder in $overlayFolders) {
+            $source = Join-Path $stagingRoot $folder
+            $destination = Join-Path $lvRoot $folder
+
+            if (Test-Path $source) {
+              Write-Host "Overlaying $source -> $destination"
+              New-Item -ItemType Directory -Path $destination -Force | Out-Null
+              Copy-Item -Path (Join-Path $source '*') -Destination $destination -Recurse -Force
+            }
+          }
+
+          # Mass compile only selected folders
+          foreach ($relativeTarget in $compileTargets) {
+            $targetPath = Join-Path $lvRoot $relativeTarget
+            if (-not (Test-Path $targetPath)) {
+              Write-Warning "Mass compile target not found, skipping: $targetPath"
+              continue
+            }
+
+            $safeName = $relativeTarget -replace '[\\/:*?""<>|]', '_'
+            $logFile = Join-Path $logRoot "$safeName-masscompile.log"
+
+            Write-Host "Mass compiling $targetPath"
+            & $labviewCli `
+              -OperationName MassCompile `
+              -DirectoryToCompile $targetPath `
+              -MassCompileLogFile $logFile `
+              -Headless
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Mass compile failed for $targetPath with exit code $LASTEXITCODE"
+            }
+          }
+          '@
+
+          $tempScript = Join-Path $env:RUNNER_TEMP "copy-and-masscompile.ps1"
+          Set-Content -Path $tempScript -Value $script
+          docker cp $tempScript "$($env:AF_CONTAINER_NAME):C:\copy-and-masscompile.ps1"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to copy script into container"
+          }
+
+          docker exec `
+            -e LV_YEAR="$env:LV_YEAR" `
+            $env:AF_CONTAINER_NAME `
+            powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File C:\copy-and-masscompile.ps1
+
+      - name: Copy mass compile logs from container
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "${{ github.workspace }}\mass-compile-logs" -Force | Out-Null
+          docker cp "$($env:AF_CONTAINER_NAME):C:\mass-compile-logs" "${{ github.workspace }}\mass-compile-logs"
+
+      - name: Upload mass compile logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mass-compile-logs
+          path: mass-compile-logs
+          retention-days: 7
+
+      - name: Cleanup container
+        if: always()
+        shell: pwsh
+        run: |
+          docker rm -f $env:AF_CONTAINER_NAME
