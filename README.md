@@ -1,4 +1,4 @@
-[![Discord](https://img.shields.io/discord/1319915996789739540?label=chat&logo=discord&style=flat)](https://discord.gg/q4d3ggrFVA)
+﻿[![Discord](https://img.shields.io/discord/1319915996789739540?label=chat&logo=discord&style=flat)](https://discord.gg/q4d3ggrFVA)
 ![Coding hours](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/ni/actor-framework/metrics/badge.json)
 
 # 🧩 Actor Framework
@@ -45,43 +45,11 @@ Actor Framework (AF) is NI’s reference implementation of the Actor Model in La
 
 ## Contributing
 
-We welcome both code and non-code contributions – everything from bug fixes and performance tweaks to documentation, testing, and discussion.
+We welcome both code and non-code contributions — bug fixes, performance tweaks, documentation, testing, and discussion. You can contribute by reporting bugs, suggesting features, joining discussions, testing pre-release packages, or submitting code changes.
 
-### Contributor License Agreement (CLA)
+All code contributors must sign NI's **Contributor License Agreement (CLA)** once per GitHub account — a bot will prompt you on your first pull request.
 
-External contributors must sign NI’s CLA once per GitHub account. A bot will prompt you on your first pull request; if not, NI staff will reach out directly.
-
-### Standard Feature Workflow
-
-1. **Check or Create an Issue**\
-   • Discuss ideas on [Discord](https://discord.gg/q4d3ggrFVA) or [open a GitHub Discussion](https://github.com/ni/actor-framework/discussions).\
-   • Once approved, the Steering Committee applies the label **[`Workflow: Open to contribution`](issues?q=is%3Aopen+label%3A%22Workflow%3A+Open+to+contribution%22)**.  
-2. **Assignment**\
-   • Comment on any issue labeled [Workflow: Open to Contribution](https://github.com/ni/actor-framework/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22Workflow%3A%20Open%20to%20contribution%22).\
-   • A maintainer assigns you and NI creates the feature branch.  
-3. **First-Time Setup**\
-   • Follow the steps in [`docs/self-hosted-runner.md`](docs/self-hosted-runner.md) *(in progress)* to register a self-hosted runner if you need one.\
-   • Fork the repository to your GitHub account.  
-4. **Feature Development**\
-   • Clone (or sync) your fork.\
-   • Implement changes and push to **`develop`** in your fork.  
-5. **Build**\
-   • CI builds a `.vip` and posts it as a **pre-release** on *your fork’s* Releases page.  
-6. **Test**\
-   • Install the pre-release package and verify the issue is resolved.\
-   • *Note: the company name of your package will show the fork’s owner instead of “NI”.*  
-7. **Pull Request**\
-   • Open a PR targeting the feature branch in the upstream repo.\
-   • Sign the CLA if the contribution is intended to ship with LabVIEW.\
-   • The Steering Committee and maintainers review, test, and iterate.  
-8. **Merge & Release**\
-   • After approval, the PR is eventually merged into **`main`**.\
-   • The functionality appears in the next LabVIEW release, and the GitHub release stream provides interim bug-fix and feature drops.
-
-### Other Ways to Help
-
-- **[Test Actor Framework 2.0](https://github.com/ni/actor-framework/discussions/100)** 
-- **Improve Docs** – README, [`CONTRIBUTING.md`](CONTRIBUTING.md), Wiki.  
+👉 **See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full contribution guide**, including branching strategy, coding standards, VI Analyzer requirements, and the step-by-step PR workflow.
 
 ---
 
