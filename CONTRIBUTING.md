@@ -348,8 +348,6 @@ Pull Requests are reviewed by repo owners and the Steering Committee:
 - **Follow-up reviews** within 3–5 business days after revisions
 - Once approved, PRs are merged promptly and queued for the next release cycle
 
-If you're unable to complete all checklist items, submit your PR as a **draft** — repo owners will help you get it ready.
-
 ---
 
 ## 📂 Repository Structure
