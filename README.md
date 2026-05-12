@@ -45,7 +45,16 @@ Actor Framework (AF) is NI’s reference implementation of the Actor Model in La
 
 ## Contributing
 
-We welcome both code and non-code contributions — bug fixes, performance tweaks, documentation, testing, and discussion. You can contribute by reporting bugs, suggesting features, joining discussions, testing pre-release packages, or submitting code changes.
+We welcome both code and non-code contributions — bug fixes, performance tweaks, documentation, testing, and discussion.
+
+### Ways to Help
+
+- **Report a bug** — Found something broken? [Open an issue](https://github.com/ni/actor-framework/issues/new?template=bug_report.yml)
+- **Suggest a feature** — Have an idea? [Submit a feature request](https://github.com/ni/actor-framework/issues/new?template=feature_request.yml) or start a [Discussion](https://github.com/ni/actor-framework/discussions)
+- **Join discussions** — Share your expertise in [GitHub Discussions](https://github.com/ni/actor-framework/discussions) or on [Discord](https://discord.gg/q4d3ggrFVA)
+- **Test changes** — Install pre-release packages and [report your findings](https://github.com/ni/actor-framework/discussions/100)
+- **Improve documentation** — Fix typos, clarify instructions, or update the Wiki
+- **Write code** — Fix bugs, implement features, or improve performance
 
 All code contributors must sign NI's **Contributor License Agreement (CLA)** once per GitHub account — a bot will prompt you on your first pull request.
 
