@@ -4,7 +4,17 @@ param(
     [string]$RelativePath,
     
     [Parameter(Mandatory = $true)]
-    [string]$AbsolutePathScripts
+    [string]$AbsolutePathScripts,
+
+    # TEMP-REVIEW: NEW PARAM - was hardcoded to 2021. The container resolves its
+    # LabVIEW year from image metadata (LV_YEAR), so the caller must be able to
+    # pass it in.
+    [string]$MinimumSupportedLVVersion = '2021',
+
+    # TEMP-REVIEW: NEW PARAM - was two hardcoded passes (32 then 64). The LabVIEW
+    # container image ships a single bitness, so container callers pass one value.
+    # Default preserves the original host behaviour.
+    [string[]]$Bitnesses = @('32', '64')
 )
 
 # Helper function to check for file or directory existence
@@ -46,35 +56,23 @@ function Execute-Script {
 try {
     # Validate required paths
     Assert-PathExists $RelativePath "RelativePath"
-    Assert-PathExists "$RelativePath\resource\plugins" "Plugins folder"
     Assert-PathExists $AbsolutePathScripts "Scripts folder"
 
-    # Clean up .lvlibp files in the plugins folder
-    Write-Host "Cleaning up old .lvlibp files in plugins folder..." -ForegroundColor Yellow
-    $PluginFiles = Get-ChildItem -Path "$RelativePath\resource\plugins" -Filter '*.lvlibp' -ErrorAction SilentlyContinue
-    if ($PluginFiles) {
-        $PluginFiles | Remove-Item -Force
-        Write-Host "Deleted .lvlibp files from plugins folder." -ForegroundColor Green
-    } else {
-        Write-Host "No .lvlibp files found to delete." -ForegroundColor Cyan
+    # TEMP-REVIEW: the "resource\plugins" assertion and .lvlibp cleanup that used to
+    # sit here were removed. They are labview-icon-editor leftovers; that folder does
+    # not exist in actor-framework, so this script exited 1 before running any test.
+    # TEMP-REVIEW: loop replaces the two copy-pasted 32/64-bit blocks. Same calls,
+    # same order, now driven by $Bitnesses.
+    foreach ($bitness in $Bitnesses) {
+        # Run Unit Tests
+        Execute-Script "$($AbsolutePathScripts)\RunUnitTests.ps1" `
+            "-MinimumSupportedLVVersion $MinimumSupportedLVVersion -SupportedBitness $bitness -RelativePath `"$RelativePath`""
+
+        # Close LabVIEW
+        Execute-Script "$($AbsolutePathScripts)\Close_LabVIEW.ps1" `
+            "-MinimumSupportedLVVersion $MinimumSupportedLVVersion -SupportedBitness $bitness"
     }
-    
-    # Run Unit Tests
-    Execute-Script "$($AbsolutePathScripts)\RunUnitTests.ps1" `
-        "-MinimumSupportedLVVersion 2021 -SupportedBitness 32 -RelativePath `"$RelativePath`""
 
-    # Close LabVIEW
-    Execute-Script "$($AbsolutePathScripts)\Close_LabVIEW.ps1" `
-        "-MinimumSupportedLVVersion 2021 -SupportedBitness 32"
-
-    # Run Unit Tests
-    Execute-Script "$($AbsolutePathScripts)\RunUnitTests.ps1" `
-        "-MinimumSupportedLVVersion 2021 -SupportedBitness 64 -RelativePath `"$RelativePath`""
-
-	# Close LabVIEW
-    Execute-Script "$($AbsolutePathScripts)\Close_LabVIEW.ps1" `
-        "-MinimumSupportedLVVersion 2021 -SupportedBitness 64"
-		
     Write-Host "All scripts executed successfully!" -ForegroundColor Green
 } catch {
     Write-Host "An unexpected error occurred during script execution: $($_.Exception.Message)" -ForegroundColor Red

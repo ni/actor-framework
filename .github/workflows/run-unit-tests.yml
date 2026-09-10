@@ -1,5 +1,18 @@
 name: Run unit tests
 
+# TEMP-REVIEW: whole job moved from running directly on the self-hosted runner to
+# running inside a LabVIEW container, mirroring ci.yml in ni/actor-framework.
+env:
+  LABVIEW_IMAGE: nationalinstruments/labview:latest-windows
+  CONTAINER_REPO_PATH: C:\actor-framework
+  CONTAINER_LOG_PATH: C:\unit-test-logs
+
+# TEMP-REVIEW: NEW - stops two runs fighting over the same container name and the
+# same Docker daemon on one self-hosted runner.
+concurrency:
+  group: run-unit-tests-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 on:
   pull_request:
     branches:
@@ -27,17 +40,61 @@ on:
 jobs:
   run-unit-tests:
     name: Run unit tests
-    runs-on: [self-hosted, iconeditor]
+    # TEMP-REVIEW: label changed from "iconeditor" to "actorframework" to match
+    # build-vi-package.yml. The runner now only needs Docker, not LabVIEW.
+    runs-on: [self-hosted, actorframework]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run unit tests
+      # TEMPORARY VIPM VALIDATION: reuse the existing container bootstrap to
+      # install, activate, refresh, and install runner_dependencies.vipc. This
+      # must succeed before the CI test execution continues.
+      - name: Validate VIPM license
         shell: pwsh
-        working-directory: pipeline/scripts
-
+        env:
+          # TEMPORARY: these credentials are used only for this CI validation
+          # and are forwarded into the disposable container as environment vars.
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
         run: |
-          $repoRoot = $env:GITHUB_WORKSPACE
-          $scriptsFolder = Join-Path $repoRoot 'pipeline/scripts'
-          .\unit_tests.ps1 -RelativePath $repoRoot -AbsolutePathScripts $scriptsFolder
+          .\pipeline\scripts\container\Invoke-ContainerUnitTests.ps1 `
+            -RepoRoot $env:GITHUB_WORKSPACE `
+            -Image $env:LABVIEW_IMAGE `
+            -SupportedBitness 64 `
+            -ContainerRepoPath $env:CONTAINER_REPO_PATH `
+            -LogPath $env:CONTAINER_LOG_PATH `
+            -ArtifactPath "${{ github.workspace }}\vipm-validation-logs" `
+            -ValidateVipmOnly
+
+      # TEMP-REVIEW: this single step replaces the old direct unit_tests.ps1 call.
+      # It pulls the image, resolves LV_YEAR from image metadata, creates/starts the
+      # container, docker cp's the repo in, docker exec's the tests, then collects
+      # logs and removes the container in a finally block.
+      - name: Run unit tests in LabVIEW container
+        shell: pwsh
+        env:
+          # TEMP-REVIEW: NEW - VIPM Pro activation credentials. All three are
+          # required by "vipm activate". Exposed as env vars (never as command-line
+          # args) and forwarded into the container via docker exec -e.
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+        run: |
+          .\pipeline\scripts\container\Invoke-ContainerUnitTests.ps1 `
+            -RepoRoot $env:GITHUB_WORKSPACE `
+            -Image $env:LABVIEW_IMAGE `
+            -SupportedBitness 64 `
+            -ContainerRepoPath $env:CONTAINER_REPO_PATH `
+            -LogPath $env:CONTAINER_LOG_PATH `
+            -ArtifactPath "${{ github.workspace }}\unit-test-logs"
+
+      - name: Upload unit test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-logs
+          path: unit-test-logs
+          retention-days: 7
