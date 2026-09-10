@@ -54,6 +54,9 @@ param(
 
     [string]$LogPath = 'C:\unit-test-logs',
 
+    # Validate VIPM and its existing runner dependency package without running tests.
+    [switch]$ValidateVipmOnly,
+
     # Set only when this script is re-invoked by itself via docker exec.
     [Parameter(Mandatory = $true, ParameterSetName = 'Container')]
     [switch]$InContainer,
@@ -99,6 +102,10 @@ if ($InContainer) {
             }
         }
 
+        Write-Host 'VIPM version:'
+        & $vipm --version
+        if ($LASTEXITCODE -ne 0) { throw "VIPM version command failed with exit code $LASTEXITCODE" }
+
         # TEMP-REVIEW: NEW BLOCK - suppress all prompts. Without this a missing or
         # wrong credential blocks on stdin and hangs the container until timeout
         # instead of failing. Documented at docs.vipm.io/latest/cli/environment-variables/
@@ -139,6 +146,11 @@ if ($InContainer) {
         Write-Host "Applying $vipc"
         & $vipm install -y $vipc --labview-version $LvYear --labview-bitness $SupportedBitness
         if ($LASTEXITCODE -ne 0) { throw "Applying runner_dependencies.vipc failed with exit code $LASTEXITCODE" }
+
+        if ($ValidateVipmOnly) {
+            Write-Host 'VIPM validation succeeded; skipping unit tests.'
+            return
+        }
 
         $scriptsFolder = Join-Path $RepoRoot 'pipeline\scripts'
         Push-Location $scriptsFolder
@@ -214,7 +226,13 @@ try {
         -RepoRoot $ContainerRepoPath `
         -LvYear $lvYear `
         -SupportedBitness $SupportedBitness `
-        -LogPath $LogPath
+        -LogPath $LogPath `
+        -ValidateVipmOnly:$ValidateVipmOnly
+
+    if ($ValidateVipmOnly) {
+        Write-Host 'VIPM validation container completed successfully.'
+        return
+    }
 
     if ($LASTEXITCODE -ne 0) {
         throw "Unit tests failed inside container $ContainerName with exit code $LASTEXITCODE"

@@ -48,6 +48,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # TEMPORARY VIPM VALIDATION: reuse the existing container bootstrap to
+      # install, activate, refresh, and install runner_dependencies.vipc. This
+      # must succeed before the CI test execution continues.
+      - name: Validate VIPM license
+        shell: pwsh
+        env:
+          # TEMPORARY: these credentials are used only for this CI validation
+          # and are forwarded into the disposable container as environment vars.
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+        run: |
+          .\pipeline\scripts\container\Invoke-ContainerUnitTests.ps1 `
+            -RepoRoot $env:GITHUB_WORKSPACE `
+            -Image $env:LABVIEW_IMAGE `
+            -SupportedBitness 64 `
+            -ContainerRepoPath $env:CONTAINER_REPO_PATH `
+            -LogPath $env:CONTAINER_LOG_PATH `
+            -ArtifactPath "${{ github.workspace }}\vipm-validation-logs" `
+            -ValidateVipmOnly
+
       # TEMP-REVIEW: this single step replaces the old direct unit_tests.ps1 call.
       # It pulls the image, resolves LV_YEAR from image metadata, creates/starts the
       # container, docker cp's the repo in, docker exec's the tests, then collects
