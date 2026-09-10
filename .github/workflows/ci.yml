@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "Validating VIPM activation in the LabVIEW Linux container..."
+          echo "Checking VIPM installation and activation in the LabVIEW Linux container..."
 
           docker run --rm \
             -e VIPM_SERIAL_NUMBER \
@@ -62,14 +62,21 @@ jobs:
             bash -lc '
               set -euo pipefail
 
-              apt-get update
-              apt-get install -y wget ca-certificates
+              if ! command -v vipm >/dev/null 2>&1; then
+                echo "VIPM is not installed. Installing VIPM..."
+                apt-get update
+                apt-get install -y wget ca-certificates
+                wget -O /tmp/vipm.deb "https://download.vipm.io/vipm/2024.0/vipm_2024.0.0_linux64.deb"
+                apt-get install -y /tmp/vipm.deb
+              else
+                echo "VIPM is already installed."
+              fi
 
-              wget -O /tmp/vipm.deb "https://download.vipm.io/vipm/2024.0/vipm_2024.0.0_linux64.deb"
-              apt-get install -y /tmp/vipm.deb
-
+              vipm --version
               vipm activate --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL"
               vipm install astemes_lib_lunit_cli --labview-version 2026 --labview-bitness 64
+
+              echo "VIPM validation succeeded: VIPM is installed, activated, and LUnit is available via VIPM."
             '
 
       - name: Run VI Analyzer tests
