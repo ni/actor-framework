@@ -22,7 +22,9 @@
       Absent  : VIPM, g-cli.
     Run all tests CLI.vi needs g-cli and Caraya from
     Tooling\deployment\runner_dependencies.vipc, which only VIPM can install,
-    so -VipmInstallerUrl is required until a prebaked image is available.
+
+    so this script downloads and installs VIPM from the hardcoded installer URL
+    before continuing.
 
 .EXAMPLE
     .\Invoke-ContainerUnitTests.ps1 -RepoRoot $env:GITHUB_WORKSPACE
@@ -52,8 +54,6 @@ param(
 
     [string]$LogPath = 'C:\unit-test-logs',
 
-    [string]$VipmInstallerUrl,
-
     # Set only when this script is re-invoked by itself via docker exec.
     [Parameter(Mandatory = $true, ParameterSetName = 'Container')]
     [switch]$InContainer,
@@ -75,39 +75,28 @@ if ($InContainer) {
         if (-not (Test-Path $lvRoot)) { throw "LabVIEW root not found at: $lvRoot" }
         Write-Host "Using LabVIEW $LvYear ($SupportedBitness-bit) at $lvRoot"
 
-        # TEMP-REVIEW: this path is an ASSUMPTION and is probably wrong for current
-        # VIPM. Docs say "the CLI ships with every edition of VIPM Desktop" but never
-        # state the install path, and modern VIPM installs under
-        # C:\Program Files\JKI\... (not the x86 tree). Verify with
-        # "docker exec <c> where vipm" before relying on this.
-        $vipm = 'C:\Program Files (x86)\JKI\VI Package Manager\vipm.exe'
-        if (-not (Test-Path $vipm)) {
-            if (-not $VipmInstallerUrl) {
-                throw @"
-VIPM is not installed in this container image and no -VipmInstallerUrl was supplied.
+        # Match the Docker SBOM pattern: don't assume vipm.exe is on PATH or in one
+        # fixed location. Search Program Files first, then download/install silently
+        # if the CLI is absent.
+        $vipm = (Get-Command vipm -ErrorAction SilentlyContinue).Source
+        if (-not $vipm) {
+            $vipm = Get-ChildItem -Path "$env:ProgramFiles", "${env:ProgramFiles(x86)}" -Filter vipm.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+        }
 
-Run all tests CLI.vi requires g-cli and Caraya
-(Tooling\deployment\runner_dependencies.vipc), which only VIPM can install.
-
-Resolve by one of:
-  1. Host a silent VIPM installer and pass its URL via -VipmInstallerUrl.
-  2. Publish a custom image (ni/labview-for-containers, "Build Your Own Image")
-     with VIPM + runner_dependencies.vipc pre-applied, and point -Image at it.
-  3. Replace the g-cli entry point with LabVIEWCLI -OperationName RunVI, which
-     needs no third-party tooling.
-"@
-            }
-
+        if (-not $vipm) {
+            $installerUrl = 'https://traffic.libsyn.com/secure/jkinc/vipm-26.3.4025-windows-setup.exe'
             $installer = Join-Path $env:TEMP 'vipm-installer.exe'
-            Write-Host "Downloading VIPM installer from $VipmInstallerUrl"
-            Invoke-WebRequest -Uri $VipmInstallerUrl -OutFile $installer -UseBasicParsing
+            Write-Host "Downloading VIPM installer from $installerUrl"
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installer -UseBasicParsing
 
-            # TEMP-REVIEW: the /S /q switches are STILL UNVERIFIED. JKI documents that
-            # the installer supports silent install but never publishes the exact
-            # switch names. Confirm against the installer you actually host.
             Write-Host 'Installing VIPM silently...'
-            $proc = Start-Process -FilePath $installer -ArgumentList '/S', '/q' -Wait -PassThru
+            $proc = Start-Process -FilePath $installer -ArgumentList '/exenoui', '/qn' -Wait -PassThru
             if ($proc.ExitCode -ne 0) { throw "VIPM installer exited with code $($proc.ExitCode)" }
+
+            $vipm = Get-ChildItem -Path "$env:ProgramFiles", "${env:ProgramFiles(x86)}" -Filter vipm.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+            if (-not $vipm) {
+                throw 'vipm.exe was not found under Program Files after installation.'
+            }
         }
 
         # TEMP-REVIEW: NEW BLOCK - suppress all prompts. Without this a missing or
@@ -148,12 +137,7 @@ Resolve by one of:
 
         $vipc = Join-Path $RepoRoot 'Tooling\deployment\runner_dependencies.vipc'
         Write-Host "Applying $vipc"
-        # TEMP-REVIEW: LEFT UNCHANGED ON PURPOSE, BUT THIS LINE IS WRONG. "& $vipm $vipc"
-        # was my own guess and is NOT documented syntax. The correct call is:
-        #   & $vipm install -y $vipc --labview-version $LvYear --labview-bitness $SupportedBitness
-        # Not changed here because you scoped this pass to activation only.
-        # This needs its own approved change before the workflow can pass.
-        & $vipm $vipc
+        & $vipm install -y $vipc --labview-version $LvYear --labview-bitness $SupportedBitness
         if ($LASTEXITCODE -ne 0) { throw "Applying runner_dependencies.vipc failed with exit code $LASTEXITCODE" }
 
         $scriptsFolder = Join-Path $RepoRoot 'pipeline\scripts'
@@ -230,8 +214,7 @@ try {
         -RepoRoot $ContainerRepoPath `
         -LvYear $lvYear `
         -SupportedBitness $SupportedBitness `
-        -LogPath $LogPath `
-        -VipmInstallerUrl $VipmInstallerUrl
+        -LogPath $LogPath
 
     if ($LASTEXITCODE -ne 0) {
         throw "Unit tests failed inside container $ContainerName with exit code $LASTEXITCODE"

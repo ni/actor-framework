@@ -55,7 +55,6 @@ jobs:
       - name: Run unit tests in LabVIEW container
         shell: pwsh
         env:
-          VIPM_INSTALLER_URL: ${{ secrets.VIPM_INSTALLER_URL }}
           # TEMP-REVIEW: NEW - VIPM Pro activation credentials. All three are
           # required by "vipm activate". Exposed as env vars (never as command-line
           # args) and forwarded into the container via docker exec -e.
@@ -69,8 +68,7 @@ jobs:
             -SupportedBitness 64 `
             -ContainerRepoPath $env:CONTAINER_REPO_PATH `
             -LogPath $env:CONTAINER_LOG_PATH `
-            -ArtifactPath "${{ github.workspace }}\unit-test-logs" `
-            -VipmInstallerUrl $env:VIPM_INSTALLER_URL
+            -ArtifactPath "${{ github.workspace }}\unit-test-logs"
 
       - name: Upload unit test logs
         if: always()
