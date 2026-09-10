@@ -35,6 +35,43 @@ jobs:
         with:
           fetch-depth: 0  # Fetch all history
 
+      # TEMPORARY VIPM VALIDATION: install and activate Linux VIPM inside the
+      # LabVIEW container before VI Analyzer. A failure stops this job, so the
+      # analyzer action below runs only after VIPM validation succeeds.
+      - name: Validate VIPM license
+        shell: bash
+        env:
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --volume "${{ github.workspace }}:/workspace" \
+            --env "VIPM_SERIAL_NUMBER=$VIPM_SERIAL_NUMBER" \
+            --env "VIPM_FULL_NAME=$VIPM_FULL_NAME" \
+            --env "VIPM_EMAIL=$VIPM_EMAIL" \
+            nationalinstruments/labview:latest-linux \
+            bash -c '
+              set -euo pipefail
+              apt-get update
+              apt-get install -y ca-certificates wget
+              wget -O /tmp/vipm.deb https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb
+              dpkg -i /tmp/vipm.deb || apt-get install -f -y
+              echo "VIPM version:"
+              vipm --version
+              test -n "$VIPM_SERIAL_NUMBER"
+              test -n "$VIPM_FULL_NAME"
+              test -n "$VIPM_EMAIL"
+              vipm activate --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL"
+              vipm refresh
+              echo "Installing LUnit CLI package to validate VIPM access:"
+              vipm install astemes_lib_lunit_cli \
+                --labview-version 2026 \
+                --labview-bitness 64
+              echo "VIPM license validation succeeded."
+            '
+
       - name: Run VI Analyzer tests
         uses: ni/open-source/via-lv-docker@actions
         with:
