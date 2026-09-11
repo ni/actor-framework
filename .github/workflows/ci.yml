@@ -43,6 +43,81 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: TEMPORARY VIPM license validation
+        shell: bash
+        env:
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+        run: |
+          set -euo pipefail
+
+          echo "Checking VIPM installation and activation in the LabVIEW Linux container..."
+
+          docker run --rm \
+            -e VIPM_SERIAL_NUMBER \
+            -e VIPM_FULL_NAME \
+            -e VIPM_EMAIL \
+            nationalinstruments/labview:latest-linux \
+            bash -lc '
+              set -euo pipefail
+
+              if ! command -v vipm >/dev/null 2>&1; then
+                echo "VIPM is not installed. Installing VIPM..."
+                apt-get update
+                apt-get install -y wget ca-certificates xvfb
+                wget -O /tmp/vipm.deb "https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb"
+                apt-get install -y /tmp/vipm.deb
+              else
+                echo "VIPM is already installed."
+              fi
+
+              export DISPLAY=:99
+              export VIPM_TIMEOUT=500
+
+              echo "DISPLAY=$DISPLAY"
+              echo "vipm version:"
+              vipm --version
+
+              if ! pgrep -x Xvfb >/dev/null 2>&1; then
+                echo "Starting Xvfb on DISPLAY=$DISPLAY..."
+                Xvfb "$DISPLAY" -screen 0 1280x720x24 -ac +extension GLX +render -noreset >/tmp/xvfb.log 2>&1 &
+              else
+                echo "Xvfb is already running."
+              fi
+
+              mkdir -p /tmp/natinst
+              echo "1" > /tmp/natinst/LVContainer.txt
+
+              if ! pgrep -x labview >/dev/null 2>&1; then
+                echo "Locating LabVIEW executable..."
+                LABVIEW_BIN="$(find / -path '*LabVIEW*' -name labview 2>/dev/null | head -n 1)"
+
+                if [ -z "$LABVIEW_BIN" ]; then
+                  echo "ERROR: LabVIEW executable not found in the container."
+                  find / -maxdepth 6 \( -path '*/LabVIEW*' -o -path '*/natinst*' \) 2>/dev/null | head -n 200 || true
+                  exit 1
+                fi
+
+                echo "Using LabVIEW binary: $LABVIEW_BIN"
+                "$LABVIEW_BIN" --headless >/tmp/labview.log 2>&1 &
+              else
+                echo "LabVIEW is already running."
+              fi
+
+              echo "Xvfb status:"
+              pgrep -a -x Xvfb || true
+
+              echo "LabVIEW status:"
+              pgrep -a -x labview || true
+
+              echo "VIPM startup diagnostics complete. Attempting activation..."
+              vipm activate --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL"
+              vipm install astemes_lib_lunit_cli --labview-version 2026 --labview-bitness 64
+
+              echo "VIPM validation succeeded: VIPM is installed, activated, and LUnit is available via VIPM."
+            '
+
       - name: Run VI Analyzer tests
         uses: ni/open-source/via-lv-docker@actions
         with:
