@@ -55,9 +55,9 @@ jobs:
           echo "Checking VIPM installation and activation in the LabVIEW Linux container..."
 
           docker run --rm \
-            -e ${VIPM_SERIAL_NUMBER} \
-            -e ${VIPM_FULL_NAME} \
-            -e ${VIPM_EMAIL} \
+            -e VIPM_SERIAL_NUMBER=${VIPM_SERIAL_NUMBER} \
+            -e VIPM_FULL_NAME='${VIPM_FULL_NAME}' \
+            -e VIPM_EMAIL='${VIPM_EMAIL}' \
             nationalinstruments/labview:latest-linux \
             bash -lc '
               set -euo pipefail
