@@ -55,9 +55,9 @@ jobs:
           echo "Checking VIPM installation and activation in the LabVIEW Linux container..."
 
           docker run --rm \
-            -e VIPM_SERIAL_NUMBER \
-            -e VIPM_FULL_NAME \
-            -e VIPM_EMAIL \
+            -e VIPM_SERIAL_NUMBER="${VIPM_SERIAL_NUMBER}" \
+            -e VIPM_FULL_NAME="${VIPM_FULL_NAME}" \
+            -e VIPM_EMAIL="${VIPM_EMAIL}" \
             nationalinstruments/labview:latest-linux \
             bash -lc '
               set -euo pipefail
@@ -78,6 +78,9 @@ jobs:
               echo "DISPLAY=$DISPLAY"
               echo "vipm version:"
               vipm --version
+
+              echo "vipm help:"
+              vipm help
 
               if ! pgrep -x Xvfb >/dev/null 2>&1; then
                 echo "Starting Xvfb on DISPLAY=$DISPLAY..."
@@ -112,6 +115,11 @@ jobs:
               pgrep -a -x labview || true
 
               echo "VIPM startup diagnostics complete. Attempting activation..."
+              if ! vipm help | grep -q 'activate'; then
+                echo "ERROR: This VIPM CLI does not support 'vipm activate'."
+                exit 1
+              fi
+
               vipm activate --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL"
               vipm install astemes_lib_lunit_cli --labview-version 2026 --labview-bitness 64
 
