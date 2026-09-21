@@ -59,7 +59,7 @@ jobs:
             -e VIPM_FULL_NAME="${VIPM_FULL_NAME}" \
             -e VIPM_EMAIL="${VIPM_EMAIL}" \
             nationalinstruments/labview:latest-linux \
-            bash -lc '
+            bash -s <<'VIPM_SCRIPT'
               set -euo pipefail
 
               if ! command -v vipm >/dev/null 2>&1; then
@@ -78,9 +78,6 @@ jobs:
               echo "DISPLAY=$DISPLAY"
               echo "vipm version:"
               vipm --version
-
-              echo "vipm help:"
-              vipm help
 
               if ! pgrep -x Xvfb >/dev/null 2>&1; then
                 echo "Starting Xvfb on DISPLAY=$DISPLAY..."
@@ -115,16 +112,11 @@ jobs:
               pgrep -a -x labview || true
 
               echo "VIPM startup diagnostics complete. Attempting activation..."
-              if ! vipm help | grep -q 'activate'; then
-                echo "ERROR: This VIPM CLI does not support 'vipm activate'."
-                exit 1
-              fi
-
               vipm activate --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL"
               vipm install astemes_lib_lunit_cli --labview-version 2026 --labview-bitness 64
 
               echo "VIPM validation succeeded: VIPM is installed, activated, and LUnit is available via VIPM."
-            '
+          VIPM_SCRIPT
 
       - name: Run VI Analyzer tests
         uses: ni/open-source/via-lv-docker@actions
