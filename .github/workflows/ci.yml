@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "Checking VIPM installation "
+          echo "Checking VIPM installation"
 
           docker run --rm \
             -e VIPM_SERIAL_NUMBER="${VIPM_SERIAL_NUMBER}" \
@@ -89,7 +89,7 @@ jobs:
               mkdir -p /tmp/natinst
               echo "1" > /tmp/natinst/LVContainer.txt
 
-              if ! pgrep -x labview >/dev/null 2>&1; then
+              if ! pgrep -x labview >/dev/null 2>&1 && ! pgrep -x labview64 >/dev/null 2>&1; then
                 echo "Locating LabVIEW executable..."
                 LABVIEW_BIN="$(command -v labview64 || true)"
                 if [ -z "$LABVIEW_BIN" ]; then
@@ -109,6 +109,15 @@ jobs:
 
                 echo "Using LabVIEW binary: $LABVIEW_BIN"
                 "$LABVIEW_BIN" --headless >/tmp/labview.log 2>&1 &
+                LABVIEW_PID=$!
+                echo "Waiting for LabVIEW startup (pid $LABVIEW_PID)..."
+                sleep 15
+                if ! kill -0 "$LABVIEW_PID" 2>/dev/null; then
+                  echo "ERROR: LabVIEW exited during startup."
+                  cat /tmp/labview.log || true
+                  exit 1
+                fi
+                echo "LabVIEW startup check passed."
               else
                 echo "LabVIEW is already running."
               fi
@@ -117,11 +126,26 @@ jobs:
               pgrep -a -x Xvfb || true
 
               echo "LabVIEW status:"
-              pgrep -a -x labview || true
+              pgrep -a labview || true
+              pgrep -a labview64 || true
 
               echo "VIPM startup diagnostics complete. Attempting activation..."
-              vipm activate --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL"
-              vipm install astemes_lib_lunit_cli --labview-version 2026 --labview-bitness 64
+              if vipm activate --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL"; then
+                echo "VIPM activation succeeded (exit code 0)."
+              else
+                activation_status=$?
+                echo "VIPM activation failed (exit code $activation_status)."
+                exit "$activation_status"
+              fi
+
+              echo "Installing LUnit package..."
+              if vipm install astemes_lib_lunit_cli --labview-version 2026 --labview-bitness 64; then
+                echo "LUnit package installation succeeded (exit code 0)."
+              else
+                install_status=$?
+                echo "LUnit package installation failed (exit code $install_status)."
+                exit "$install_status"
+              fi
 
               echo "VIPM validation succeeded: VIPM is installed, activated, and LUnit is available via VIPM."
           VIPM_SCRIPT
