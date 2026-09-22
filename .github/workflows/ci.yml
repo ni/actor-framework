@@ -53,14 +53,16 @@ jobs:
           set -euo pipefail
 
           echo "Checking VIPM installation"
+          echo "Starting Linux VIPM container..."
 
-          docker run --rm \
+          docker run --rm -i \
             -e VIPM_SERIAL_NUMBER="${VIPM_SERIAL_NUMBER}" \
             -e VIPM_FULL_NAME="${VIPM_FULL_NAME}" \
             -e VIPM_EMAIL="${VIPM_EMAIL}" \
             nationalinstruments/labview:latest-linux \
             bash -s <<'VIPM_SCRIPT'
               set -euo pipefail
+              echo "VIPM container script started."
 
               if ! command -v vipm >/dev/null 2>&1; then
                 echo "VIPM is not installed. Installing VIPM..."
@@ -152,6 +154,8 @@ jobs:
 
               echo "VIPM validation succeeded: VIPM is installed, activated, and LUnit is available via VIPM."
           VIPM_SCRIPT
+
+              echo "Linux VIPM container exited successfully."
 
       - name: Run VI Analyzer tests
         uses: ni/open-source/via-lv-docker@actions
