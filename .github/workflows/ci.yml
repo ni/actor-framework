@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "Checking VIPM installation and activation in the LabVIEW Linux container..."
+          echo "Checking VIPM installation "
 
           docker run --rm \
             -e VIPM_SERIAL_NUMBER="${VIPM_SERIAL_NUMBER}" \
@@ -91,11 +91,19 @@ jobs:
 
               if ! pgrep -x labview >/dev/null 2>&1; then
                 echo "Locating LabVIEW executable..."
-                LABVIEW_BIN="$(find / -path '*LabVIEW*' -name labview 2>/dev/null | head -n 1)"
+                LABVIEW_BIN="$(command -v labview64 || true)"
+                if [ -z "$LABVIEW_BIN" ]; then
+                  LABVIEW_BIN="$(find / -path '*LabVIEW*' -name labview 2>/dev/null | head -n 1)"
+                fi
 
                 if [ -z "$LABVIEW_BIN" ]; then
                   echo "ERROR: LabVIEW executable not found in the container."
                   find / -maxdepth 6 \( -path '*/LabVIEW*' -o -path '*/natinst*' \) 2>/dev/null | head -n 200 || true
+                  exit 1
+                fi
+
+                if [ ! -x "$LABVIEW_BIN" ]; then
+                  echo "ERROR: LabVIEW executable is not executable: $LABVIEW_BIN"
                   exit 1
                 fi
 
