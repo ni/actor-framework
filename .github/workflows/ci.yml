@@ -96,6 +96,9 @@ jobs:
                   LABVIEW_BIN="$(find / -path '*LabVIEW*' -name labview 2>/dev/null | head -n 1)"
                 fi
 
+                echo "LABVIEW_BIN='$LABVIEW_BIN'"
+                command -v labview64 || true
+
                 if [ -z "$LABVIEW_BIN" ]; then
                   echo "ERROR: LabVIEW executable not found in the container."
                   find / -maxdepth 6 \( -path '*/LabVIEW*' -o -path '*/natinst*' \) 2>/dev/null | head -n 200 || true
