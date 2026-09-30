@@ -1,0 +1,29 @@
+name: Test VIPM dependency update
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - users/amrutha/dependency-test
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-dependencies:
+    uses: ni/open-source/.github/workflows/reusable-vipm-update.yml@users/amrutha/vipm-custom-manifest-support
+    with:
+      working_directory: Tooling/deployment
+      manifest_filename: runner_dependencies.toml
+      lock_filename: runner_dependencies.lock
+      include_dev_dependencies: false
+      labview_version: "2021"
+      labview_bitness: "64"
+      base_branch: develop
+      # Separate from the default so the test cannot collide with real update PRs.
+      pr_branch: automation/vipm-dependency-update-test
+    secrets:
+      VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+      VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+      VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
