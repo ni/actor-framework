@@ -1,0 +1,67 @@
+name: Bootstrap Runner Dependency Lock
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+  generate-lock:
+    name: Generate runner dependency lock
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Generate initial lock in Ubuntu container
+        shell: bash
+        env:
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir /workspace \
+            --env VIPM_SERIAL_NUMBER \
+            --env VIPM_FULL_NAME \
+            --env VIPM_EMAIL \
+            ubuntu:24.04 \
+            bash -euc '
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install -y ca-certificates wget
+              wget -q https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb -O /tmp/vipm.deb
+              apt-get install -y /tmp/vipm.deb
+
+              export VIPM_NONINTERACTIVE=1
+              export NO_COLOR=1
+              vipm activate \
+                --serial-number "$VIPM_SERIAL_NUMBER" \
+                --name "$VIPM_FULL_NAME" \
+                --email "$VIPM_EMAIL"
+              vipm refresh
+
+              project_dir="$(mktemp -d)"
+              trap "rm -rf $project_dir" EXIT
+              cp /workspace/Tooling/deployment/runner_dependencies.toml "$project_dir/vipm.toml"
+              cd "$project_dir"
+              vipm lock --labview-version 2021 --labview-bitness 64
+
+              mkdir -p /workspace/runner-dependency-lock-artifact
+              cp vipm.lock /workspace/runner-dependency-lock-artifact/runner_dependencies.lock
+            '
+
+      - name: Upload generated lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-dependency-lock
+          path: runner-dependency-lock-artifact/runner_dependencies.lock
+          if-no-files-found: error
+          retention-days: 7
