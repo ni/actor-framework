@@ -18,56 +18,62 @@ jobs:
 
     env:
       LABVIEW_VERSION_YEAR: "2026"
+      VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+      VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+      VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create display setup script
-        run: |
-          cat > setup-display.sh << 'EOF'
-          TARGET_DISPLAY=:99
-          export DISPLAY="$TARGET_DISPLAY"
-          if ! pgrep -x Xvfb > /dev/null; then
-              Xvfb "$TARGET_DISPLAY" -screen 0 1280x720x24 -ac +extension GLX +render -noreset \
-                  > /tmp/xvfb.log 2>&1 &
-          fi
-          # Without this marker file the LabVIEW Runtime Engine may not start properly.
-          mkdir -p /tmp/natinst && echo "1" > /tmp/natinst/LVContainer.txt
-          echo "$(pgrep -x Xvfb > /dev/null && echo "Xvfb running (DISPLAY=$TARGET_DISPLAY)" || echo "WARNING: Xvfb is required by vipm, but failed to start; DISPLAY=$DISPLAY may not work. Check /tmp/xvfb.log for details.")"
-          EOF
-
       - name: Install VIPM
         run: |
-          wget -O /tmp/vipm.deb https://packages.jki.net/vipm/preview/vipm_latest_preview_amd64.deb
-          dpkg -i /tmp/vipm.deb
-          rm /tmp/vipm.deb
+          apt-get update
+          apt-get install -y wget ca-certificates xvfb
+          if ! command -v vipm >/dev/null 2>&1; then
+            wget -O /tmp/vipm.deb https://packages.jki.net/vipm/preview/vipm_latest_preview_amd64.deb
+            apt-get install -y /tmp/vipm.deb
+          fi
 
-      - name: Activate VIPM
+      - name: Start display and activate VIPM
         run: |
-          source setup-display.sh
+          export DISPLAY=:99
+          export VIPM_TIMEOUT=500
+          Xvfb "$DISPLAY" -screen 0 1280x720x24 -ac +extension GLX +render -noreset >/tmp/xvfb.log 2>&1 &
+          # Without this marker file the LabVIEW Runtime Engine may not start properly.
+          mkdir -p /tmp/natinst && echo "1" > /tmp/natinst/LVContainer.txt
+          vipm --version
           vipm activate \
-            --serial-number "${{ secrets.VIPM_SERIAL_NUMBER }}" \
-            --name "${{ secrets.VIPM_FULL_NAME }}" \
-            --email "${{ secrets.VIPM_EMAIL }}"
+            --serial-number "$VIPM_SERIAL_NUMBER" \
+            --name "$VIPM_FULL_NAME" \
+            --email "$VIPM_EMAIL"
+
+      - name: Stage dependency manifest
+        run: |
+          project_dir="$GITHUB_WORKSPACE/.vipm-lock-project"
+          mkdir -p "$project_dir"
+          cp Tooling/deployment/runner_dependencies.toml "$project_dir/vipm.toml"
+          echo "VIPM_PROJECT_DIR=$project_dir" >> "$GITHUB_ENV"
 
       - name: Refresh package sources
         run: |
-          source setup-display.sh
-          vipm refresh
+          export DISPLAY=:99
+          cd "$VIPM_PROJECT_DIR"
+          # Clean runner has no repository cache; populate it for this
+          # project's LabVIEW target before lock resolution.
+          vipm refresh --labview-version "$LABVIEW_VERSION_YEAR" --labview-bitness 64
 
       - name: Generate runner dependency lock
         run: |
-          source setup-display.sh
-          /usr/local/natinst/LabVIEW-${LABVIEW_VERSION_YEAR}-64/labview --headless &
+          export DISPLAY=:99
+          cd "$VIPM_PROJECT_DIR"
+          vipm lock
 
-          project_dir="$(mktemp -d)"
-          cp Tooling/deployment/runner_dependencies.toml "$project_dir/vipm.toml"
-          cd "$project_dir"
-          vipm lock --labview-version "$LABVIEW_VERSION_YEAR" --labview-bitness 64
-
-          mkdir -p "$GITHUB_WORKSPACE/runner-dependency-lock-artifact"
-          cp vipm.lock "$GITHUB_WORKSPACE/runner-dependency-lock-artifact/runner_dependencies.lock"
+      - name: Collect generated lock
+        if: always()
+        run: |
+          mkdir -p runner-dependency-lock-artifact
+          cp "$VIPM_PROJECT_DIR/vipm.lock" runner-dependency-lock-artifact/runner_dependencies.lock
 
       - name: Upload generated lock
         if: always()
