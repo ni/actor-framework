@@ -13,49 +13,61 @@ jobs:
     name: Generate runner dependency lock
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
+    container:
+      image: nationalinstruments/labview:2026q1patch2-linux
+
+    env:
+      LABVIEW_VERSION_YEAR: "2026"
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Generate initial lock in Ubuntu container
-        shell: bash
-        env:
-          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
-          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
-          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+      - name: Create display setup script
         run: |
-          docker run --rm \
-            --volume "$GITHUB_WORKSPACE:/workspace" \
-            --workdir /workspace \
-            --env VIPM_SERIAL_NUMBER \
-            --env VIPM_FULL_NAME \
-            --env VIPM_EMAIL \
-            ubuntu:24.04 \
-            bash -euc '
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update
-              apt-get install -y ca-certificates wget
-              wget -q https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb -O /tmp/vipm.deb
-              apt-get install -y /tmp/vipm.deb
+          cat > setup-display.sh << 'EOF'
+          TARGET_DISPLAY=:99
+          export DISPLAY="$TARGET_DISPLAY"
+          if ! pgrep -x Xvfb > /dev/null; then
+              Xvfb "$TARGET_DISPLAY" -screen 0 1280x720x24 -ac +extension GLX +render -noreset \
+                  > /tmp/xvfb.log 2>&1 &
+          fi
+          # Without this marker file the LabVIEW Runtime Engine may not start properly.
+          mkdir -p /tmp/natinst && echo "1" > /tmp/natinst/LVContainer.txt
+          echo "$(pgrep -x Xvfb > /dev/null && echo "Xvfb running (DISPLAY=$TARGET_DISPLAY)" || echo "WARNING: Xvfb is required by vipm, but failed to start; DISPLAY=$DISPLAY may not work. Check /tmp/xvfb.log for details.")"
+          EOF
 
-              export VIPM_NONINTERACTIVE=1
-              export NO_COLOR=1
-              vipm activate \
-                --serial-number "$VIPM_SERIAL_NUMBER" \
-                --name "$VIPM_FULL_NAME" \
-                --email "$VIPM_EMAIL"
-              vipm refresh
+      - name: Install VIPM
+        run: |
+          wget -O /tmp/vipm.deb https://packages.jki.net/vipm/preview/vipm_latest_preview_amd64.deb
+          dpkg -i /tmp/vipm.deb
+          rm /tmp/vipm.deb
 
-              project_dir="$(mktemp -d)"
-              trap "rm -rf $project_dir" EXIT
-              cp /workspace/Tooling/deployment/runner_dependencies.toml "$project_dir/vipm.toml"
-              cd "$project_dir"
-              vipm lock --labview-version 2021 --labview-bitness 64
+      - name: Activate VIPM
+        run: |
+          source setup-display.sh
+          vipm activate \
+            --serial-number "${{ secrets.VIPM_SERIAL_NUMBER }}" \
+            --name "${{ secrets.VIPM_FULL_NAME }}" \
+            --email "${{ secrets.VIPM_EMAIL }}"
 
-              mkdir -p /workspace/runner-dependency-lock-artifact
-              cp vipm.lock /workspace/runner-dependency-lock-artifact/runner_dependencies.lock
-            '
+      - name: Refresh package sources
+        run: |
+          source setup-display.sh
+          vipm refresh
+
+      - name: Generate runner dependency lock
+        run: |
+          source setup-display.sh
+          /usr/local/natinst/LabVIEW-${LABVIEW_VERSION_YEAR}-64/labview --headless &
+
+          project_dir="$(mktemp -d)"
+          cp Tooling/deployment/runner_dependencies.toml "$project_dir/vipm.toml"
+          cd "$project_dir"
+          vipm lock --labview-version "$LABVIEW_VERSION_YEAR" --labview-bitness 64
+
+          mkdir -p "$GITHUB_WORKSPACE/runner-dependency-lock-artifact"
+          cp vipm.lock "$GITHUB_WORKSPACE/runner-dependency-lock-artifact/runner_dependencies.lock"
 
       - name: Upload generated lock
         if: always()
