@@ -3,7 +3,7 @@
 
 version = 2
 revision = 0
-updated-at = "2026-09-30T06:03:47.480224048Z"
+updated-at = "2026-09-30T09:58:57.160097780Z"
 requires-labview = "2021"
 
 [[vipm.repo]]
@@ -16,41 +16,38 @@ uri = "http://www.jkisoft.com/packages"
 
 [[package]]
 name = "jdp_science_jsontext"
-version = "1.9.0.124"
+version = "1.9.1.125"
 manager = "vipm"
 dependencies = ["jdp_science_lib_common_utilities"]
-group = "dev"
 resolution-source = "repo"
 
 [[package.source]]
 repo = "NI LabVIEW Tools Network"
-checksum = "md5:87ea40ee60bbb5e1c2b16f67b3210e6b"
+checksum = "md5:1eb6255ec31ab431fe7da7aa2a4beeac"
 
 [[package]]
 name = "jdp_science_lib_common_utilities"
-version = "1.4.1.18"
+version = "1.4.2.19"
 manager = "vipm"
-group = "dev"
 resolution-source = "repo"
 
 [[package.source]]
 repo = "NI LabVIEW Tools Network"
-checksum = "md5:9b22f7af77447f46e4777298757d850e"
+checksum = "sha256:f3bfe18f75fd5485c398a41e4328c75eadab267666af69f3f99ea17dd3b7a49a"
 
 [[package]]
 name = "jki_lib_caraya"
-version = "1.4.3.147"
+version = "1.4.4.148"
 manager = "vipm"
 dependencies = [
     "jki_lib_state_machine",
     "jki_rsc_toolkits_palette",
 ]
-group = "dev"
 resolution-source = "repo"
 
 [[package.source]]
 repo = "VIPM Community"
-checksum = "md5:0c20279ab1c809e6ee64eec107347a64"
+checksum = "md5:aa97541b975f31b92afc95822b59626a"
 
 [[package]]
 name = "jki_lib_state_machine"
@@ -88,30 +85,28 @@ checksum = "md5:d8e12776ee5532544b44cc7ab43045f8"
 
 [[package]]
 name = "sas_workshops_lib_lvbuildspec_for_g_cli"
-version = "1.2.0.99"
+version = "1.2.1.104"
 manager = "vipm"
 dependencies = ["wiresmith_technology_lib_g_cli"]
-group = "dev"
 resolution-source = "repo"
 
 [[package.source]]
 repo = "VIPM Community"
-checksum = "md5:c1bff92101bf8e8e9f6f07ca1a773a58"
+checksum = "md5:52e086b74929d6e1da3bbdaa6238ebc1"
 
 [[package]]
 name = "sas_workshops_lib_vipb_builder_for_g_cli"
-version = "1.1.5.42"
+version = "1.1.6.46"
 manager = "vipm"
 dependencies = [
     "jki_lib_vipm_api",
     "wiresmith_technology_lib_g_cli",
 ]
-group = "dev"
 resolution-source = "repo"
 
 [[package.source]]
 repo = "VIPM Community"
-checksum = "md5:3521e2499272c04476a5968a13fcf297"
+checksum = "md5:b2fddfd5015cbf48a2fd433278c0776f"
 
 [[package]]
 name = "wiresmith_technology_lib_g_cli"
