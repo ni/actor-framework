@@ -20,7 +20,7 @@ jobs:
       include_dev_dependencies: false
       labview_version: "2021"
       labview_bitness: "64"
-      base_branch: develop
+      base_branch: users/amrutha/dependency-test
       # Separate from the default so the test cannot collide with real update PRs.
       pr_branch: automation/vipm-dependency-update-test
     secrets:
