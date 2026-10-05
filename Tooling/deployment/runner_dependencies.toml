@@ -1,0 +1,15 @@
+[project]
+name = "actor-framework-ci-runner-dependencies"
+version = "1.0.0"
+labview-version = "2021"
+
+[dependencies]
+jdp_science_jsontext = "1.9.0.124"
+jdp_science_lib_common_utilities = "1.4.1.18"
+jki_lib_caraya = "1.4.3.147"
+jki_lib_state_machine = "2024.0.3.23"
+jki_lib_vipm_api = "2020.0.3.80"
+jki_rsc_toolkits_palette = "1.1-1"
+sas_workshops_lib_lvbuildspec_for_g_cli = "1.2.0.99"
+sas_workshops_lib_vipb_builder_for_g_cli = "1.1.5.42"
+wiresmith_technology_lib_g_cli = "3.0.1.98"
