@@ -20,7 +20,7 @@ jobs:
       labview_version: "2021"
       labview_bitness: "64"
       base_branch: develop
-      pr_branch: automation/vipm-dependency-update
+      pr_branch: users/amrutha/automate-update-dependency
     secrets:
       VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
       VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
