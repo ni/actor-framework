@@ -4,8 +4,8 @@ permissions:
   contents: read
 
 on:
-  push:
-  pull_request:
+  schedule:
+    - cron: '0 10 * * 6'
 
 jobs:
   version:
@@ -30,7 +30,7 @@ jobs:
     name: Generate SBOM
     needs: version
     # TODO: pin to a release tag when the reusable action is published.
-    uses: ni/open-source/.github/workflows/reusable-generate-sbom.yml@users/amrutha/sbom-generation-action
+    uses: ni/open-source/.github/workflows/reusable-generate-sbom.yml@actions
     with:
       lvproj_path: Core/AF PPL Build.lvproj
       labview_version: '2026q1'
