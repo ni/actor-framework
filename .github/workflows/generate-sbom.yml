@@ -1,0 +1,43 @@
+name: Generate SBOM
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    - cron: '0 10 * * 6'
+
+jobs:
+  version:
+    name: Resolve Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: version
+        name: Get version from latest tag
+        shell: pwsh
+        run: |
+          $tag = git tag -l "v*.*.*" --sort=-version:refname | Select-Object -First 1
+          $version = if ($tag) { ($tag -replace '^v', '') -replace '-.*$', '' } else { '0.0.0' }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+  sbom:
+    name: Generate SBOM
+    needs: version
+    # TODO: pin to a release tag when the reusable action is published.
+    uses: ni/open-source/.github/workflows/reusable-generate-sbom.yml@actions
+    with:
+      lvproj_path: Core/AF PPL Build.lvproj
+      labview_version: '2026q1'
+      labview_bitness: '64'
+      build_spec_name: 'AF PPL'
+      target_name: 'My Computer'
+      product_name: actor-framework
+      product_version: ${{ needs.version.outputs.version }}
+      output_path: builds/sbom/actor-framework.cdx.json
+      artifact_name: actor-framework-sbom
