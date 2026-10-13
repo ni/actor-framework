@@ -63,6 +63,8 @@ You don't need to write code to make a meaningful contribution. Here are all the
 
 ## 🐛 Reporting Bugs
 
+> **Found a security vulnerability?** Please don't report it in a public issue — follow the private reporting process in [SECURITY.md](https://github.com/ni/actor-framework/blob/main/SECURITY.md).
+
 If you find a bug, please [open a bug report](https://github.com/ni/actor-framework/issues/new?template=bug_report.yml):
 
 - Use a clear, descriptive title
