@@ -62,7 +62,7 @@ All code contributors must sign NI's **Contributor License Agreement (CLA)** onc
 
 ---
 
-## Governance & Communication & Communication
+## Governance & Communication
 
 Actor Framework follows the same open-governance model as the LabVIEW Icon Editor:
 
