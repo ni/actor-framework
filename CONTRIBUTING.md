@@ -152,6 +152,8 @@ The repository uses a multi-tier branching model aligned with the LabVIEW releas
 | **`releases/<YYYY>Q<N>`** | Per-release branch (e.g. `releases/2027Q1`) — created from `main` during a release window. Used for final release validation, and for patches and hotfixes after the release ships. Built without alpha, beta, or RC suffixes. | Repo Owners |
 | **`feature/<issue#>-<desc>`** | Feature branches — created by repo owners for approved issues. Your PRs target these. | Contributors |
 
+> **Note:** The `develop` branch is frozen and no longer accepts changes. Open PRs against a feature branch.
+
 #### Release Integration Schedule
 
 Release branches are cut from `main` **twice a year**, approximately three months before each LabVIEW release:
@@ -387,6 +389,10 @@ Actor Framework is maintained under an open-governance model:
 - **Technical Steering Committee (SteerCo)** — NI staff and community architects who oversee the roadmap, review architectural changes, and approve feature directions
 - **Repo Owners** — Handle code review, CI validation, merge approvals, and release tagging
 - **NI** retains final decision authority for major direction and architecture changes
+
+For full details, see [GOVERNANCE.md](https://github.com/ni/actor-framework/blob/main/GOVERNANCE.md).
+
+All participants must follow the [Code of Conduct](https://github.com/ni/actor-framework/blob/main/CODE_OF_CONDUCT.md).
 
 ---
 
