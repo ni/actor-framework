@@ -214,7 +214,7 @@ def require_node(parent, path):
     return node
 
 general = require_node(root, "Library_General_Settings")
-require_node(general, "Library_Source_Folder").text = "/workspace/Core"
+require_node(general, "Library_Source_Folder").text = "/workspace"
 require_node(general, "Library_Output_Folder").text = "/artifacts/VI Package"
 require_node(general, "Package_LabVIEW_Version").text = f"{labview_version} (64-bit)"
 require_node(root, "Advanced_Settings/Install_Requirements/LV_32-Bit").text = "false"
@@ -222,11 +222,22 @@ require_node(root, "Advanced_Settings/Install_Requirements/LV_64-Bit").text = "t
 require_node(root, "Advanced_Settings/VI_Package_Configuration_File").text = ""
 require_node(root, "Advanced_Settings/License_Agreement_Filepath").text = "/workspace/LICENSE.txt"
 
+source_files = require_node(root, "Advanced_Settings/Source_Files")
+for path_node in source_files.iter("Path"):
+    path = (path_node.text or "").replace("\\", "/").strip("/")
+    if not path:
+        continue
+    if path == ".":
+        path_node.text = "Core"
+    elif path != "Core" and not path.startswith("Core/"):
+        path_node.text = f"Core/{path}"
+
 output.parent.mkdir(parents=True, exist_ok=True)
 ET.indent(tree, space="  ")
 tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared temporary VIPB: {output}")
-print("Source root: /workspace/Core")
+print("Source root: /workspace")
+print("Prefixed VIPB source paths with Core/.")
 print("LabVIEW target: " + labview_version + " (64-bit)")
 print("Removed missing VIPC reference from the temporary copy.")
 PY
