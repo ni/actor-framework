@@ -7,6 +7,8 @@ LOG_DIR="$ARTIFACT_ROOT/logs"
 VIPM_DEB_URL="https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb"
 VIPM_DESKTOP_LIVELINESS_TIMEOUT="${VIPM_DESKTOP_LIVELINESS_TIMEOUT:-300}"
 XVFB_PID=""
+BUILTIN_AF_DIR=""
+BUILTIN_AF_BACKUP=""
 
 mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/VI Package" "$ARTIFACT_ROOT/tmp"
 
@@ -59,6 +61,15 @@ on_exit() {
     while IFS= read -r -d '' file; do
         redact_secrets "$file" || true
     done < <(find "$LOG_DIR" -type f -print0 2>/dev/null)
+    if [[ -n "$BUILTIN_AF_BACKUP" && -d "$BUILTIN_AF_BACKUP" ]]; then
+        if [[ -e "$BUILTIN_AF_DIR" ]]; then
+            echo "Cannot restore built-in Actor Framework; destination already exists: $BUILTIN_AF_DIR" >&2
+            (( status != 0 )) || status=1
+        elif ! mv "$BUILTIN_AF_BACKUP" "$BUILTIN_AF_DIR"; then
+            echo "Failed to restore built-in Actor Framework to: $BUILTIN_AF_DIR" >&2
+            (( status != 0 )) || status=1
+        fi
+    fi
     if [[ -n "$XVFB_PID" ]]; then
         kill "$XVFB_PID" 2>/dev/null || true
     fi
@@ -130,6 +141,29 @@ if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
     exit 1
 fi
 
+disable_builtin_actor_framework() {
+    local library_path
+    local labview_root
+    library_path="$(find /usr/local/natinst -type f -ipath '*/vi.lib/actorframework/actor framework.lvlib' -print -quit 2>/dev/null)"
+    if [[ -z "$library_path" ]]; then
+        echo "Could not find LabVIEW's bundled vi.lib/ActorFramework/Actor Framework.lvlib." >&2
+        exit 1
+    fi
+
+    BUILTIN_AF_DIR="$(dirname "$library_path")"
+    labview_root="$(dirname "$(dirname "$BUILTIN_AF_DIR")")"
+    BUILTIN_AF_BACKUP="$labview_root/.actor-framework-vipm-build-disabled"
+    if [[ -e "$BUILTIN_AF_BACKUP" ]]; then
+        echo "Temporary built-in Actor Framework backup already exists: $BUILTIN_AF_BACKUP" >&2
+        exit 1
+    fi
+
+    mv "$BUILTIN_AF_DIR" "$BUILTIN_AF_BACKUP"
+    printf 'Temporarily moved bundled Actor Framework out of vi.lib: %s\n' "$BUILTIN_AF_DIR"
+}
+
+disable_builtin_actor_framework
+
 run_logged vipm-download 900 curl --fail --location --retry 3 --retry-all-errors --output /tmp/vipm.deb "$VIPM_DEB_URL"
 if ! run_logged vipm-dpkg-install 900 dpkg -i /tmp/vipm.deb; then
     run_logged apt-repair 900 apt-get -f install -y
@@ -152,37 +186,6 @@ cat "$activation_log"
 if (( activation_status != 0 )); then
     printf 'VIPM Pro activation failed with exit status %s.\n' "$activation_status" >&2
     exit "$activation_status"
-fi
-
-if ! run_logged vipm-refresh 900 vipm refresh --verbose; then
-    echo 'VIPM refresh failed; retrying once after a short delay.' >&2
-    sleep 30
-    run_logged vipm-refresh-retry 900 vipm refresh --verbose
-fi
-
-manifest="$WORKSPACE/Tooling/deployment/runner_dependencies.toml"
-if [[ ! -f "$manifest" ]]; then
-    echo "Dependency manifest not found: $manifest" >&2
-    exit 1
-fi
-linux_manifest="$LOG_DIR/runner_dependencies.linux.toml"
-optional_log="$LOG_DIR/vipm-optional-dependencies.log"
-: > "$optional_log"
-# These G-CLI extensions are not needed by the direct VIPM build; no PPL is built here.
-for package in jki_lib_vipm_api sas_workshops_lib_lvbuildspec_for_g_cli sas_workshops_lib_vipb_builder_for_g_cli; do
-    if grep -Eq "^${package}[[:space:]]*=" "$manifest"; then
-        printf 'Skipping non-required build tooling dependency: %s\n' "$package" | tee -a "$optional_log"
-    fi
-done
-awk '
-    /^(jki_lib_vipm_api|sas_workshops_lib_lvbuildspec_for_g_cli|sas_workshops_lib_vipb_builder_for_g_cli)[[:space:]]*=/ { next }
-    { print }
-' "$manifest" > "$linux_manifest"
-if ! run_logged vipm-dependencies 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
-    echo 'Dependency installation failed or timed out; capturing diagnostics and retrying once.' >&2
-    collect_diagnostics 'dependency-install-first-attempt'
-    sleep 30
-    run_logged vipm-dependencies-retry 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose
 fi
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
