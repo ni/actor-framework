@@ -1,0 +1,67 @@
+name: Build Actor Framework VIP in NI Linux Container
+
+on:
+  workflow_dispatch:
+    inputs:
+      labview_version:
+        description: NI LabVIEW container version
+        required: true
+        default: 2026q1
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-vip:
+    name: Build VIP in NI LabVIEW Linux container
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Build VIP in container
+        shell: bash
+        env:
+          LABVIEW_VERSION: ${{ inputs.labview_version }}
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+        run: |
+          set -euo pipefail
+          image="nationalinstruments/labview:${LABVIEW_VERSION}-linux"
+          artifact_root="$RUNNER_TEMP/actor-framework-vip-build"
+          mkdir -p "$artifact_root"
+
+          docker pull "$image"
+          docker run --rm \
+            --mount "type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly" \
+            --mount "type=bind,source=${artifact_root},target=/artifacts" \
+            --workdir /workspace \
+            --env LABVIEW_VERSION \
+            --env VIPM_SERIAL_NUMBER \
+            --env VIPM_FULL_NAME \
+            --env VIPM_EMAIL \
+            "$image" \
+            bash /workspace/pipeline/scripts/Build-VIP-Linux-Container.sh
+
+      - name: Upload built VIP
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: actor-framework-vip-${{ inputs.labview_version }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/actor-framework-vip-build/VI Package/*.vip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build, install, and diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: actor-framework-vip-logs-${{ github.run_id }}
+          path: ${{ runner.temp }}/actor-framework-vip-build/logs/**
+          if-no-files-found: warn
+          retention-days: 14
