@@ -144,7 +144,7 @@ PowerShell script that handles the actual file copying and artifact structure cr
 - name: Create framework artifact structure
   shell: pwsh
   run: |
-    & "${{ github.workspace }}\pipeline\scripts\Create_Distribution_Artifact.ps1" -ExclusionFile "custom-exclusions.txt"
+    & "$env:GITHUB_WORKSPACE\pipeline\scripts\Create_Distribution_Artifact.ps1" -ExclusionFile "custom-exclusions.txt"
 ```
 
 ### Adding New File Extension Exclusions
