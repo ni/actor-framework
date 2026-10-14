@@ -29,7 +29,7 @@ jobs:
       - name: Build VIP in container
         shell: bash
         env:
-          LABVIEW_VERSION: ${{ inputs.labview_version }}
+          LABVIEW_VERSION: ${{ inputs.labview_version || '2026q1' }}
           VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
           VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
           VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
