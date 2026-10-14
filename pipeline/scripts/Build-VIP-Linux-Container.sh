@@ -186,13 +186,18 @@ if ! run_logged vipm-dependencies 1800 vipm install "$linux_manifest" --labview-
 fi
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
-vipb_output="$ARTIFACT_ROOT/tmp/Actor Framework Linux.ci.vipb"
+staged_core="$ARTIFACT_ROOT/tmp/Core"
+vipb_output="$staged_core/Actor Framework Linux.ci.vipb"
 vipb_log="$LOG_DIR/vipb-preparation.log"
-if [[ ! -d "$WORKSPACE/Core/Install Support" ]]; then
-    echo 'VIPB custom-action source directory is missing: Core/Install Support' >&2
+if [[ ! -d "$WORKSPACE/Core" ]]; then
+    echo 'Core source directory is missing: Core' >&2
     exit 1
 fi
-cp -a "$WORKSPACE/Core/Install Support" "$ARTIFACT_ROOT/tmp/"
+if [[ -e "$staged_core" ]]; then
+    echo "Temporary Core staging directory already exists: $staged_core" >&2
+    exit 1
+fi
+cp -a "$WORKSPACE/Core" "$ARTIFACT_ROOT/tmp/"
 if ! python3 - "$vipb_source" "$vipb_output" "$LV_NUMERIC_VERSION" > "$vipb_log" 2>&1 <<'PY'
 import sys
 import xml.etree.ElementTree as ET
@@ -214,7 +219,7 @@ def require_node(parent, path):
     return node
 
 general = require_node(root, "Library_General_Settings")
-require_node(general, "Library_Source_Folder").text = "/workspace"
+require_node(general, "Library_Source_Folder").text = "."
 require_node(general, "Library_Output_Folder").text = "/artifacts/VI Package"
 require_node(general, "Package_LabVIEW_Version").text = f"{labview_version} (64-bit)"
 require_node(root, "Advanced_Settings/Install_Requirements/LV_32-Bit").text = "false"
@@ -222,22 +227,12 @@ require_node(root, "Advanced_Settings/Install_Requirements/LV_64-Bit").text = "t
 require_node(root, "Advanced_Settings/VI_Package_Configuration_File").text = ""
 require_node(root, "Advanced_Settings/License_Agreement_Filepath").text = "/workspace/LICENSE.txt"
 
-source_files = require_node(root, "Advanced_Settings/Source_Files")
-for path_node in source_files.iter("Path"):
-    path = (path_node.text or "").replace("\\", "/").strip("/")
-    if not path:
-        continue
-    if path == ".":
-        path_node.text = "Core"
-    elif path != "Core" and not path.startswith("Core/"):
-        path_node.text = f"Core/{path}"
-
 output.parent.mkdir(parents=True, exist_ok=True)
 ET.indent(tree, space="  ")
 tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared temporary VIPB: {output}")
-print("Source root: /workspace")
-print("Prefixed VIPB source paths with Core/.")
+print("Staged source root: " + str(source.parent))
+print("Preserved Core-relative VIPB source paths.")
 print("LabVIEW target: " + labview_version + " (64-bit)")
 print("Removed missing VIPC reference from the temporary copy.")
 PY
