@@ -188,6 +188,11 @@ fi
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
 vipb_output="$ARTIFACT_ROOT/tmp/Actor Framework Linux.ci.vipb"
 vipb_log="$LOG_DIR/vipb-preparation.log"
+if [[ ! -d "$WORKSPACE/Core/Install Support" ]]; then
+    echo 'VIPB custom-action source directory is missing: Core/Install Support' >&2
+    exit 1
+fi
+cp -a "$WORKSPACE/Core/Install Support" "$ARTIFACT_ROOT/tmp/"
 if ! python3 - "$vipb_source" "$vipb_output" "$LV_NUMERIC_VERSION" > "$vipb_log" 2>&1 <<'PY'
 import sys
 import xml.etree.ElementTree as ET
