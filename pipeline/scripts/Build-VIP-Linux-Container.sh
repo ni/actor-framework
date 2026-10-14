@@ -143,7 +143,6 @@ fi
 
 disable_builtin_actor_framework() {
     local library_path
-    local labview_root
     library_path="$(find /usr/local/natinst -type f -ipath '*/vi.lib/actorframework/actor framework.lvlib' -print -quit 2>/dev/null)"
     if [[ -z "$library_path" ]]; then
         echo "Could not find LabVIEW's bundled vi.lib/ActorFramework/Actor Framework.lvlib." >&2
@@ -151,15 +150,18 @@ disable_builtin_actor_framework() {
     fi
 
     BUILTIN_AF_DIR="$(dirname "$library_path")"
-    labview_root="$(dirname "$(dirname "$BUILTIN_AF_DIR")")"
-    BUILTIN_AF_BACKUP="$labview_root/.actor-framework-vipm-build-disabled"
+    BUILTIN_AF_BACKUP="$ARTIFACT_ROOT/tmp/builtin-actor-framework"
     if [[ -e "$BUILTIN_AF_BACKUP" ]]; then
         echo "Temporary built-in Actor Framework backup already exists: $BUILTIN_AF_BACKUP" >&2
         exit 1
     fi
 
     mv "$BUILTIN_AF_DIR" "$BUILTIN_AF_BACKUP"
-    printf 'Temporarily moved bundled Actor Framework out of vi.lib: %s\n' "$BUILTIN_AF_DIR"
+    printf 'Temporarily moved bundled Actor Framework outside the LabVIEW tree: %s -> %s\n' "$BUILTIN_AF_DIR" "$BUILTIN_AF_BACKUP"
+    if find /usr/local/natinst -type f -ipath '*/vi.lib/actorframework/actor framework.lvlib' -print -quit 2>/dev/null | grep -q .; then
+        echo 'Another bundled Actor Framework copy remains under the LabVIEW tree; refusing to build.' >&2
+        exit 1
+    fi
 }
 
 disable_builtin_actor_framework
@@ -186,6 +188,37 @@ cat "$activation_log"
 if (( activation_status != 0 )); then
     printf 'VIPM Pro activation failed with exit status %s.\n' "$activation_status" >&2
     exit "$activation_status"
+fi
+
+if ! run_logged vipm-refresh 900 vipm refresh --verbose; then
+    echo 'VIPM refresh failed; retrying once after a short delay.' >&2
+    sleep 30
+    run_logged vipm-refresh-retry 900 vipm refresh --verbose
+fi
+
+manifest="$WORKSPACE/Tooling/deployment/runner_dependencies.toml"
+if [[ ! -f "$manifest" ]]; then
+    echo "Dependency manifest not found: $manifest" >&2
+    exit 1
+fi
+linux_manifest="$LOG_DIR/runner_dependencies.linux.toml"
+optional_log="$LOG_DIR/vipm-optional-dependencies.log"
+: > "$optional_log"
+# G-CLI build extensions are not used by the direct VIPM build command.
+for package in jki_lib_vipm_api sas_workshops_lib_lvbuildspec_for_g_cli sas_workshops_lib_vipb_builder_for_g_cli; do
+    if grep -Eq "^${package}[[:space:]]*=" "$manifest"; then
+        printf 'Skipping non-required G-CLI dependency: %s\n' "$package" | tee -a "$optional_log"
+    fi
+done
+awk '
+    /^(jki_lib_vipm_api|sas_workshops_lib_lvbuildspec_for_g_cli|sas_workshops_lib_vipb_builder_for_g_cli)[[:space:]]*=/ { next }
+    { print }
+' "$manifest" > "$linux_manifest"
+if ! run_logged vipm-dependencies 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
+    echo 'Dependency installation failed or timed out; capturing diagnostics and retrying once.' >&2
+    collect_diagnostics 'dependency-install-first-attempt'
+    sleep 30
+    run_logged vipm-dependencies-retry 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose
 fi
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
