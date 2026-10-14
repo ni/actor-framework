@@ -1,6 +1,9 @@
 name: Build Actor Framework VIP in NI Linux Container
 
 on:
+  push:
+    branches:
+      - users/amrutha/vip_build
   workflow_dispatch:
     inputs:
       labview_version:
