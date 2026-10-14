@@ -63,6 +63,8 @@ You don't need to write code to make a meaningful contribution. Here are all the
 
 ## 🐛 Reporting Bugs
 
+> **Found a security vulnerability?** Please don't report it in a public issue — follow the private reporting process in [SECURITY.md](https://github.com/ni/actor-framework/blob/main/SECURITY.md).
+
 If you find a bug, please [open a bug report](https://github.com/ni/actor-framework/issues/new?template=bug_report.yml):
 
 - Use a clear, descriptive title
@@ -122,22 +124,25 @@ You must sign NI's Contributor License Agreement **once per GitHub account** bef
 1. **Fork** the [actor-framework](https://github.com/ni/actor-framework) repository to your GitHub account
 2. **Clone** your fork locally
 3. Install LabVIEW 2020 SP1+ and VIPM
-4. If you need a self-hosted runner for CI, follow the steps in [docs/self-hosted-runner.md](https://github.com/ni/actor-framework/blob/develop/docs/self-hosted-runner.md) *(guide in progress)*
+4. If you need a self-hosted runner for CI, follow the steps in [docs/self-hosted-runner.md](https://github.com/ni/actor-framework/blob/main/docs/self-hosted-runner.md) *(guide in progress)*
 
 ### Branching Strategy
 
-The repository uses a three-tier branching model aligned with the LabVIEW release cycle:
+The repository uses a multi-tier branching model aligned with the LabVIEW release cycle:
 
 ```
   Your Fork                        Upstream (ni/actor-framework)
   ────────                         ────────────────────────────
 
-  your-branch ──► PR ──►           develop  (accepts contributions year-round)
+  your-branch ──► PR ──►           feature/<issue#>-<description>
                                       │
-                                      │  March & September
+                                      ▼
+                                    main  (accepts approved features year-round)
+                                      │
+                                      │  release window
                                       │  (~ 3 months before LabVIEW release)
                                       ▼
-                                    main  (release-ready, final artifacts built here)
+                                   releases/<YYYY>Q<N>  (final release validation)
                                       │
                                       ▼
                                    LabVIEW Release
@@ -145,20 +150,26 @@ The repository uses a three-tier branching model aligned with the LabVIEW releas
 
 | Branch | Purpose | Who Merges |
 |---|---|---|
-| **`main`** | Release branch — final VIPM artifacts and distribution packages are built from here. Only updated twice a year. | Repo Owners / NI |
-| **`develop`** | Integration branch — accepts community contributions year-round. This is where your PRs should target. | Repo Owners |
-| **Your fork branch** | Your working branch — create feature/bugfix branches on your fork and submit PRs to `develop`. | You |
+| **`main`** | The default branch and year-round integration branch. Approved features are merged here, and it is the source branch for release branches. | Repo Owners / NI |
+| **`releases/<YYYY>Q<N>`** | Per-release branch (e.g. `releases/2027Q1`) — created from `main` during a release window. Used for final release validation, and for patches and hotfixes after the release ships. Built without alpha, beta, or RC suffixes. | Repo Owners |
+| **`feature/<issue#>-<desc>`** | Feature branches — created by repo owners for approved issues. Your PRs target these. | Contributors |
+
+> **Note:** The `develop` branch is frozen and no longer accepts changes. Open PRs against a feature branch.
 
 #### Release Integration Schedule
 
-Changes from `develop` are promoted to `main` **twice a year**, approximately three months before each LabVIEW release:
+Release branches are cut from `main` **twice a year**, approximately three months before each LabVIEW release:
 
 | Integration Window | LabVIEW Release | What Happens |
 |---|---|---|
-| **March** | Q3 release (June/July) | Feature freeze on `develop`; approved changes merged to `main`; final artifacts built and validated |
-| **September** | Q1 release (next year) | Feature freeze on `develop`; approved changes merged to `main`; final artifacts built and validated |
+| **March** | Q3 release (June/July) | `releases/<YYYY>Q3` is cut from `main`; final artifacts built and validated |
+| **September** | Q1 release (next year) | `releases/<YYYY>Q1` is cut from `main`; final artifacts built and validated |
 
-> **What this means for contributors:** You can submit PRs to `develop` at any time. Your changes will be reviewed, merged into `develop`, and then included in the next integration window when `develop` is promoted to `main`.
+> **What this means for contributors:** You can submit PRs to feature branches at any time. Your changes will be reviewed and merged into `main`, and then included in the next release branch cut.
+
+### Patches & Hotfixes
+
+If a bug needs to be fixed in a release that has already shipped, target the corresponding release branch (e.g. `releases/2027Q1`) directly instead of `main`. Apply the `patch` release label to the PR.
 
 ### Standard Feature Workflow
 
@@ -168,14 +179,14 @@ Changes from `develop` are promoted to `main` **twice a year**, approximately th
 
 2. **Get assigned**
    - Comment on the issue to let repo owners know you'd like to work on it
-   - A repo owner will assign you and NI creates a feature branch in the upstream repo
+   - A repo owner will assign you and create a branch named `feature/<issue number>-<short-description>` in the upstream repo
 
 3. **Develop**
-   - Implement your changes on the `develop` branch of your fork
+   - Fork the repo, clone your fork, and check out the feature branch
    - Follow the [coding standards](#coding-standards) below
 
 4. **Build**
-   - Build a VI Package using the [PowerShell build tool](https://github.com/ni/actor-framework/tree/develop/Tooling)
+   - Build a VI Package using the [PowerShell build tool](https://github.com/ni/actor-framework/tree/main/Tooling)
    - CI will also build a `.vip` and post it as a pre-release on your fork's Releases page
    - Note: the package from your fork will show your fork owner's name instead of "NI"
 
@@ -185,7 +196,7 @@ Changes from `develop` are promoted to `main` **twice a year**, approximately th
    - Document your test results
 
 6. **Submit a Pull Request**
-   - Open a PR targeting the **feature branch** in the upstream repo (not `main` or `develop` directly)
+   - Push your branch to your fork and open a PR targeting the **feature branch** in the upstream repo (not `main` directly)
    - Fill out the PR template completely (see [PR Guidelines](#pull-request-guidelines))
    - Sign the CLA if prompted
 
@@ -194,9 +205,9 @@ Changes from `develop` are promoted to `main` **twice a year**, approximately th
    - Address feedback and push updates to your branch
 
 8. **Merge & release**
-   - After approval, your PR is merged into `develop`
-   - During the next integration window (March or September), approved changes in `develop` are promoted to `main`
-   - Final artifacts are built from `main` and ship in the corresponding LabVIEW release
+   - After approval, your PR is merged into `main`
+   - During the next integration window, a `releases/<YYYY>Q<N>` branch is cut from `main`
+   - Your contribution ships in the corresponding LabVIEW release
 
 ### Pull Request Guidelines
 
@@ -288,7 +299,7 @@ The CI pipeline runs **VI Analyzer (VIA)** tests on every PR to enforce code qua
 **How VI Analyzer runs in CI:**
 
 - VI Analyzer runs in a **Docker container** with LabVIEW (Linux) via the `ni/open-source/via-lv-docker@actions` GitHub Action
-- It analyzes **only the files changed in your PR** by comparing against the base branch (`develop`)
+- It analyzes **only the files changed in your PR** by comparing against the PR's target branch
 - On manual dispatch, it can analyze the full codebase using the `.viancfg` configuration
 - Results are uploaded as an **artifact** (`vi-analyzer-report.htm`) you can download and review
 
@@ -381,6 +392,10 @@ Actor Framework is maintained under an open-governance model:
 - **Repo Owners** — Handle code review, CI validation, merge approvals, and release tagging
 - **NI** retains final decision authority for major direction and architecture changes
 
+For full details, see [GOVERNANCE.md](https://github.com/ni/actor-framework/blob/main/GOVERNANCE.md).
+
+All participants must follow the [Code of Conduct](https://github.com/ni/actor-framework/blob/main/CODE_OF_CONDUCT.md).
+
 ---
 
 ## 📡 Communication Channels
@@ -395,4 +410,4 @@ Actor Framework is maintained under an open-governance model:
 
 ## License
 
-Actor Framework is licensed under the [MIT License](https://github.com/ni/actor-framework/blob/develop/LICENSE.txt). By contributing, you agree to license your work under these terms so NI and the LabVIEW community can incorporate it into future LabVIEW distributions.
+Actor Framework is licensed under the [MIT License](https://github.com/ni/actor-framework/blob/main/LICENSE.txt). By contributing, you agree to license your work under these terms so NI and the LabVIEW community can incorporate it into future LabVIEW distributions.
