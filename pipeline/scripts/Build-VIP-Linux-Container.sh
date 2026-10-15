@@ -260,10 +260,17 @@ for descriptor in source_descriptors:
     descriptor_root = descriptor_tree.getroot()
     changed = False
     for item in descriptor_root.iter():
-        url = item.get("URL")
-        if not url or item.get("Type") == "Class Private Data":
+        if item.get("URL"):
+            reference_kind = "URL"
+            reference = item.get("URL")
+        elif item.tag == "Property" and item.get("Name") == "NI.Lib.ContainingLibPath":
+            reference_kind = "NI.Lib.ContainingLibPath"
+            reference = item.text
+        else:
             continue
-        normalized_url = url.replace("\\", "/")
+        if not reference or item.get("Type") == "Class Private Data":
+            continue
+        normalized_url = reference.replace("\\", "/")
         if normalized_url.startswith(("/", "<")):
             continue
         original_target = (descriptor.parent / normalized_url).resolve()
@@ -279,12 +286,15 @@ for descriptor in source_descriptors:
             except ValueError:
                 continue
             if candidate_target.exists():
-                item.set("URL", candidate_url)
-                repaired_links.append(f"{descriptor.relative_to(staged_root)}: {url} -> {candidate_url}")
+                if reference_kind == "URL":
+                    item.set("URL", candidate_url)
+                else:
+                    item.text = candidate_url
+                repaired_links.append(f"{descriptor.relative_to(staged_root)} [{reference_kind}]: {reference} -> {candidate_url}")
                 changed = True
                 break
         else:
-            unresolved_links.append(f"{descriptor.relative_to(staged_root)}: {url}")
+            unresolved_links.append(f"{descriptor.relative_to(staged_root)} [{reference_kind}]: {reference}")
 
     if changed:
         descriptor_tree.write(descriptor, encoding="utf-8", xml_declaration=True)
