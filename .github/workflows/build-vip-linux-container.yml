@@ -41,7 +41,7 @@ jobs:
 
           docker pull "$image"
           docker run --rm \
-            --mount "type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly" \
+            --mount "type=bind,source=${GITHUB_WORKSPACE},target=/workspace" \
             --mount "type=bind,source=${artifact_root},target=/artifacts" \
             --mount "type=bind,source=${artifact_root}/Builds,target=/workspace/Builds" \
             --workdir /workspace \
