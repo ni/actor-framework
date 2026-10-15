@@ -201,27 +201,18 @@ if [[ ! -f "$manifest" ]]; then
     echo "Dependency manifest not found: $manifest" >&2
     exit 1
 fi
-linux_manifest="$LOG_DIR/runner_dependencies.linux.toml"
-optional_log="$LOG_DIR/vipm-optional-dependencies.log"
-: > "$optional_log"
-# G-CLI tooling is not used by the direct VIPM build command.
-for package in jki_lib_vipm_api wiresmith_technology_lib_g_cli sas_workshops_lib_lvbuildspec_for_g_cli sas_workshops_lib_vipb_builder_for_g_cli; do
-    if grep -Eq "^${package}[[:space:]]*=" "$manifest"; then
-        printf 'Skipping non-required G-CLI dependency: %s\n' "$package" | tee -a "$optional_log"
-    fi
-done
-awk '
-    /^(jki_lib_vipm_api|wiresmith_technology_lib_g_cli|sas_workshops_lib_lvbuildspec_for_g_cli|sas_workshops_lib_vipb_builder_for_g_cli)[[:space:]]*=/ { next }
-    { print }
-' "$manifest" > "$linux_manifest"
-if ! run_logged vipm-dependencies 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
+if ! run_logged runner-dependencies 1800 vipm install "$manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
     echo 'Dependency installation failed or timed out; capturing diagnostics and retrying once.' >&2
     collect_diagnostics 'dependency-install-first-attempt'
     sleep 30
-    if ! run_logged vipm-dependencies-retry 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
-        echo 'WARNING: VIPM dependency installation still failed after retry; continuing to vipm build.' >&2
+    if ! run_logged runner-dependencies-retry 1800 vipm install "$manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
+        echo 'WARNING: Runner dependencies still failed after retry; continuing to the G-CLI steps.' >&2
         collect_diagnostics 'dependency-install-warning-continuing'
     fi
+fi
+if ! command -v g-cli >/dev/null 2>&1; then
+    echo 'G-CLI is unavailable; the VIPB build cannot run. Check runner-dependencies.log.' >&2
+    exit 1
 fi
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
@@ -328,7 +319,7 @@ output.parent.mkdir(parents=True, exist_ok=True)
 ET.indent(tree, space="  ")
 tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared temporary VIPB: {output}")
-print("Staged source root: . (VIPM build working directory)")
+print("Staged source root: . (G-CLI build working directory)")
 print("Preserved Core-relative VIPB source paths.")
 print("LabVIEW target: " + labview_version + " (64-bit)")
 print("Removed missing VIPC reference from the temporary copy.")
@@ -339,9 +330,43 @@ then
 fi
 cat "$vipb_log"
 
+dependencies_vipc="$WORKSPACE/Tooling/deployment/Dependencies.vipc"
+if [[ ! -f "$dependencies_vipc" ]]; then
+    echo "VIPC dependency file not found: $dependencies_vipc" >&2
+    exit 1
+fi
+vipc_target="$LV_NUMERIC_VERSION (64-bit)"
+if ! run_logged vipc-apply 1800 g-cli --lv-ver "$LV_YEAR" --arch 64 --connect-timeout 120000 --kill --kill-timeout 20000 --verbose -v "$WORKSPACE/Tooling/deployment/ApplyVIPC.vi" -- "$dependencies_vipc" "$vipc_target"; then
+    echo 'WARNING: ApplyVIPC failed; continuing to the G-CLI VIPB build.' >&2
+    collect_diagnostics 'vipc-apply-warning-continuing'
+fi
+
+release_notes="$WORKSPACE/Tooling/deployment/release_notes.md"
+if [[ ! -f "$release_notes" ]]; then
+    echo "Release notes file not found: $release_notes" >&2
+    exit 1
+fi
+package_version="$(python3 - "$vipb_output" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+vipb = Path(sys.argv[1])
+root = ET.parse(vipb).getroot()
+version = root.findtext("./Library_General_Settings/Library_Version")
+if not version or len(version.split(".")) != 4 or not all(part.isdigit() for part in version.split(".")):
+    raise ValueError(f"Invalid VIPB package version: {version!r}")
+print(version)
+PY
+)"
+IFS=. read -r package_major package_minor package_patch package_build <<< "$package_version"
+display_information=$(printf '{"Package Version":{"major":%s,"minor":%s,"patch":%s,"build":%s},"Product Name":"","Company Name":"","Author Name (Person or Company)":"","Product Homepage (URL)":"","Legal Copyright":"","License Agreement Name":"","Product Description Summary":"","Product Description":"","Release Notes - Change Log":""}' "$package_major" "$package_minor" "$package_patch" "$package_build")
+
+run_logged vipb-display-information 900 g-cli --lv-ver "$LV_YEAR" --arch 64 --connect-timeout 120000 --kill --kill-timeout 20000 --verbose -v "$WORKSPACE/Tooling/deployment/Modify_VIPB_Display_Information.vi" -- "$vipb_output" "$vipc_target" "$display_information"
+
 (
     cd "$staged_core"
-    run_logged vipm-build 1800 vipm build "$(basename "$vipb_output")" --labview-version "$LV_YEAR" --labview-bitness 64 --timeout 900 --verbose
+    run_logged gcli-vipb-build 1800 g-cli --lv-ver "$LV_YEAR" --arch 64 --connect-timeout 120000 --kill --kill-timeout 20000 --verbose vipb -- --buildspec "$vipb_output" -v "$package_version" --release-notes "$release_notes" --timeout 900
 )
 shopt -s nullglob
 vip_files=("$ARTIFACT_ROOT/VI Package/"*.vip)
