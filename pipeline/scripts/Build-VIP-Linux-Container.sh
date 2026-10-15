@@ -196,24 +196,38 @@ if ! run_logged vipm-refresh 900 vipm refresh --verbose; then
     run_logged vipm-refresh-retry 900 vipm refresh --verbose
 fi
 
-manifest="$WORKSPACE/Tooling/deployment/runner_dependencies.toml"
-if [[ ! -f "$manifest" ]]; then
-    echo "Dependency manifest not found: $manifest" >&2
-    exit 1
-fi
-if ! run_logged runner-dependencies 1800 vipm install "$manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
-    echo 'Dependency installation failed or timed out; capturing diagnostics and retrying once.' >&2
-    collect_diagnostics 'dependency-install-first-attempt'
+gcli_manifest="$LOG_DIR/gcli-bootstrap.toml"
+cat > "$gcli_manifest" <<EOF
+[project]
+name = "actor-framework-gcli-bootstrap"
+version = "1.0.0"
+labview-version = "$LV_YEAR"
+
+[dependencies]
+wiresmith_technology_lib_g_cli = "3.0.1.98"
+EOF
+if ! run_logged gcli-install 1800 vipm install "$gcli_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
+    echo 'G-CLI package installation failed; retrying once.' >&2
     sleep 30
-    if ! run_logged runner-dependencies-retry 1800 vipm install "$manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
-        echo 'WARNING: Runner dependencies still failed after retry; continuing to the G-CLI steps.' >&2
-        collect_diagnostics 'dependency-install-warning-continuing'
-    fi
+    run_logged gcli-install-retry 1800 vipm install "$gcli_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose
 fi
 if ! command -v g-cli >/dev/null 2>&1; then
-    echo 'G-CLI is unavailable; the VIPB build cannot run. Check runner-dependencies.log.' >&2
+    echo 'G-CLI is unavailable after VIPM installation; cannot apply VIPCs or build the VIP.' >&2
     exit 1
 fi
+
+vipc_target="$LV_NUMERIC_VERSION (64-bit)"
+for vipc_name in runner_dependencies Dependencies; do
+    dependencies_vipc="$WORKSPACE/Tooling/deployment/${vipc_name}.vipc"
+    if [[ ! -f "$dependencies_vipc" ]]; then
+        echo "VIPC dependency file not found: $dependencies_vipc" >&2
+        exit 1
+    fi
+    if ! run_logged "vipc-apply-${vipc_name}" 1800 g-cli --lv-ver "$LV_YEAR" --arch 64 --connect-timeout 120000 --kill --kill-timeout 20000 --verbose -v "$WORKSPACE/Tooling/deployment/ApplyVIPC.vi" -- "$dependencies_vipc" "$vipc_target"; then
+        echo "WARNING: ApplyVIPC failed for ${vipc_name}.vipc; continuing to the next G-CLI step." >&2
+        collect_diagnostics "vipc-apply-${vipc_name}-warning"
+    fi
+done
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
 staged_core="$ARTIFACT_ROOT/tmp/Core"
@@ -329,17 +343,6 @@ then
     exit 1
 fi
 cat "$vipb_log"
-
-dependencies_vipc="$WORKSPACE/Tooling/deployment/Dependencies.vipc"
-if [[ ! -f "$dependencies_vipc" ]]; then
-    echo "VIPC dependency file not found: $dependencies_vipc" >&2
-    exit 1
-fi
-vipc_target="$LV_NUMERIC_VERSION (64-bit)"
-if ! run_logged vipc-apply 1800 g-cli --lv-ver "$LV_YEAR" --arch 64 --connect-timeout 120000 --kill --kill-timeout 20000 --verbose -v "$WORKSPACE/Tooling/deployment/ApplyVIPC.vi" -- "$dependencies_vipc" "$vipc_target"; then
-    echo 'WARNING: ApplyVIPC failed; continuing to the G-CLI VIPB build.' >&2
-    collect_diagnostics 'vipc-apply-warning-continuing'
-fi
 
 release_notes="$WORKSPACE/Tooling/deployment/release_notes.md"
 if [[ ! -f "$release_notes" ]]; then
