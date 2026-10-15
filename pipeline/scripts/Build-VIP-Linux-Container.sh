@@ -204,21 +204,24 @@ fi
 linux_manifest="$LOG_DIR/runner_dependencies.linux.toml"
 optional_log="$LOG_DIR/vipm-optional-dependencies.log"
 : > "$optional_log"
-# G-CLI build extensions are not used by the direct VIPM build command.
-for package in jki_lib_vipm_api sas_workshops_lib_lvbuildspec_for_g_cli sas_workshops_lib_vipb_builder_for_g_cli; do
+# G-CLI tooling is not used by the direct VIPM build command.
+for package in jki_lib_vipm_api wiresmith_technology_lib_g_cli sas_workshops_lib_lvbuildspec_for_g_cli sas_workshops_lib_vipb_builder_for_g_cli; do
     if grep -Eq "^${package}[[:space:]]*=" "$manifest"; then
         printf 'Skipping non-required G-CLI dependency: %s\n' "$package" | tee -a "$optional_log"
     fi
 done
 awk '
-    /^(jki_lib_vipm_api|sas_workshops_lib_lvbuildspec_for_g_cli|sas_workshops_lib_vipb_builder_for_g_cli)[[:space:]]*=/ { next }
+    /^(jki_lib_vipm_api|wiresmith_technology_lib_g_cli|sas_workshops_lib_lvbuildspec_for_g_cli|sas_workshops_lib_vipb_builder_for_g_cli)[[:space:]]*=/ { next }
     { print }
 ' "$manifest" > "$linux_manifest"
 if ! run_logged vipm-dependencies 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
     echo 'Dependency installation failed or timed out; capturing diagnostics and retrying once.' >&2
     collect_diagnostics 'dependency-install-first-attempt'
     sleep 30
-    run_logged vipm-dependencies-retry 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose
+    if ! run_logged vipm-dependencies-retry 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
+        echo 'WARNING: VIPM dependency installation still failed after retry; continuing to vipm build.' >&2
+        collect_diagnostics 'dependency-install-warning-continuing'
+    fi
 fi
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
@@ -244,6 +247,54 @@ source = Path(source)
 output = Path(output)
 if not source.is_file():
     raise FileNotFoundError(f"Tracked Core VIPB not found: {source}")
+
+# Some source URLs retain parent traversals from an earlier layout. Repair only
+# references that fail as written and resolve to an existing staged file after
+# removing one or more leading ../ segments.
+staged_root = output.parent.resolve()
+repaired_links = []
+unresolved_links = []
+source_descriptors = sorted(staged_root.rglob("*.lvlib")) + sorted(staged_root.rglob("*.lvclass"))
+for descriptor in source_descriptors:
+    descriptor_tree = ET.parse(descriptor)
+    descriptor_root = descriptor_tree.getroot()
+    changed = False
+    for item in descriptor_root.iter():
+        url = item.get("URL")
+        if not url or item.get("Type") == "Class Private Data":
+            continue
+        normalized_url = url.replace("\\", "/")
+        if normalized_url.startswith(("/", "<")):
+            continue
+        original_target = (descriptor.parent / normalized_url).resolve()
+        if original_target.exists():
+            continue
+
+        candidate_url = normalized_url
+        while candidate_url.startswith("../"):
+            candidate_url = candidate_url[3:]
+            candidate_target = (descriptor.parent / candidate_url).resolve()
+            try:
+                candidate_target.relative_to(staged_root)
+            except ValueError:
+                continue
+            if candidate_target.exists():
+                item.set("URL", candidate_url)
+                repaired_links.append(f"{descriptor.relative_to(staged_root)}: {url} -> {candidate_url}")
+                changed = True
+                break
+        else:
+            unresolved_links.append(f"{descriptor.relative_to(staged_root)}: {url}")
+
+    if changed:
+        descriptor_tree.write(descriptor, encoding="utf-8", xml_declaration=True)
+
+if unresolved_links:
+    examples = "\n".join(unresolved_links[:25])
+    raise ValueError(f"Unresolved local LabVIEW source URLs ({len(unresolved_links)}):\n{examples}")
+for link in repaired_links:
+    print("Repaired staged source URL: " + link)
+print(f"Repaired {len(repaired_links)} staged LVLib/LVClass source URLs.")
 
 tree = ET.parse(source)
 root = tree.getroot()
