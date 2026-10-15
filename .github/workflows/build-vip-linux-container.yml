@@ -37,12 +37,13 @@ jobs:
           set -euo pipefail
           image="nationalinstruments/labview:${LABVIEW_VERSION}-linux"
           artifact_root="$RUNNER_TEMP/actor-framework-vip-build"
-          mkdir -p "$artifact_root"
+          mkdir -p "$artifact_root/logs" "$artifact_root/Builds"
 
           docker pull "$image"
           docker run --rm \
             --mount "type=bind,source=${GITHUB_WORKSPACE},target=/workspace,readonly" \
             --mount "type=bind,source=${artifact_root},target=/artifacts" \
+            --mount "type=bind,source=${artifact_root}/Builds,target=/workspace/Builds" \
             --workdir /workspace \
             --env LABVIEW_VERSION \
             --env VIPM_SERIAL_NUMBER \
@@ -56,7 +57,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: actor-framework-vip-${{ inputs.labview_version }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/actor-framework-vip-build/VI Package/*.vip
+          path: ${{ runner.temp }}/actor-framework-vip-build/Builds/*.vip
           if-no-files-found: error
           retention-days: 7
 
