@@ -10,7 +10,7 @@ XVFB_PID=""
 BUILTIN_AF_DIR=""
 BUILTIN_AF_BACKUP=""
 
-mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/Builds" "$ARTIFACT_ROOT/tmp"
+mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/VI Package" "$ARTIFACT_ROOT/tmp"
 
 redact_secrets() {
     local file="$1"
@@ -62,10 +62,11 @@ on_exit() {
         redact_secrets "$file" || true
     done < <(find "$LOG_DIR" -type f -print0 2>/dev/null)
     if [[ -n "$BUILTIN_AF_BACKUP" && -d "$BUILTIN_AF_BACKUP" ]]; then
-        if [[ -e "$BUILTIN_AF_DIR" ]]; then
-            echo "Cannot restore bundled Actor Framework; destination already exists: $BUILTIN_AF_DIR" >&2
+        if [[ -e "$BUILTIN_AF_DIR" ]] && ! mv "$BUILTIN_AF_DIR" "$ARTIFACT_ROOT/tmp/repository-actor-framework-after-build"; then
+            echo "Failed to move repository Actor Framework aside: $BUILTIN_AF_DIR" >&2
             (( status != 0 )) || status=1
-        elif ! mv "$BUILTIN_AF_BACKUP" "$BUILTIN_AF_DIR"; then
+        fi
+        if [[ ! -e "$BUILTIN_AF_DIR" ]] && ! mv "$BUILTIN_AF_BACKUP" "$BUILTIN_AF_DIR"; then
             echo "Failed to restore bundled Actor Framework to: $BUILTIN_AF_DIR" >&2
             (( status != 0 )) || status=1
         fi
@@ -141,6 +142,31 @@ if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
     exit 1
 fi
 
+replace_container_actor_framework() {
+    local source_dir="$WORKSPACE/Core/ActorFramework"
+    local installed_dir="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/vi.lib/ActorFramework"
+    local backup_dir="$ARTIFACT_ROOT/tmp/bundled-actor-framework"
+    if [[ ! -f "$source_dir/Actor Framework.lvlib" || ! -f "$installed_dir/Actor Framework.lvlib" ]]; then
+        echo "Expected Actor Framework library missing from $source_dir or $installed_dir" >&2
+        return 1
+    fi
+    if [[ -e "$backup_dir" || -e "$ARTIFACT_ROOT/tmp/repository-actor-framework-after-build" ]]; then
+        echo 'Actor Framework backup directories already exist; refusing to overwrite them.' >&2
+        return 1
+    fi
+    mv "$installed_dir" "$backup_dir"
+    BUILTIN_AF_DIR="$installed_dir"
+    BUILTIN_AF_BACKUP="$backup_dir"
+    cp -a "$source_dir" "$installed_dir"
+    diff -qr "$source_dir" "$installed_dir"
+    printf 'Replaced container Actor Framework: %s -> %s\n' "$source_dir" "$installed_dir"
+    printf 'Bundled Actor Framework backup: %s\n' "$backup_dir"
+}
+
+replacement_log="$LOG_DIR/actor-framework-replacement.log"
+replace_container_actor_framework > "$replacement_log" 2>&1
+cat "$replacement_log"
+
 run_logged vipm-download 900 curl --fail --location --retry 3 --retry-all-errors --output /tmp/vipm.deb "$VIPM_DEB_URL"
 if ! run_logged vipm-dpkg-install 900 dpkg -i /tmp/vipm.deb; then
     run_logged apt-repair 900 apt-get -f install -y
@@ -207,7 +233,7 @@ fi
 
 run_logged vipm-build 1800 vipm build "$vipb_output" --labview-version "$LV_YEAR" --labview-bitness 64 --timeout 900 --verbose
 shopt -s nullglob
-vip_files=("$ARTIFACT_ROOT/Builds/"*.vip)
+vip_files=("$ARTIFACT_ROOT/VI Package/"*.vip)
 if (( ${#vip_files[@]} == 0 )); then
     echo 'VIPM reported success but produced no .vip under the artifact output directory.' >&2
     exit 1
