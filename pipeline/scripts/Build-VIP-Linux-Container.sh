@@ -316,7 +316,7 @@ def require_node(parent, path):
     return node
 
 general = require_node(root, "Library_General_Settings")
-require_node(general, "Library_Source_Folder").text = str(output.parent.resolve())
+require_node(general, "Library_Source_Folder").text = "."
 require_node(general, "Library_Output_Folder").text = "/artifacts/VI Package"
 require_node(general, "Package_LabVIEW_Version").text = f"{labview_version} (64-bit)"
 require_node(root, "Advanced_Settings/Install_Requirements/LV_32-Bit").text = "false"
@@ -328,7 +328,7 @@ output.parent.mkdir(parents=True, exist_ok=True)
 ET.indent(tree, space="  ")
 tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared temporary VIPB: {output}")
-print("Staged source root: " + str(output.parent.resolve()))
+print("Staged source root: . (VIPM build working directory)")
 print("Preserved Core-relative VIPB source paths.")
 print("LabVIEW target: " + labview_version + " (64-bit)")
 print("Removed missing VIPC reference from the temporary copy.")
@@ -339,7 +339,10 @@ then
 fi
 cat "$vipb_log"
 
-run_logged vipm-build 1800 vipm build "$vipb_output" --labview-version "$LV_YEAR" --labview-bitness 64 --timeout 900 --verbose
+(
+    cd "$staged_core"
+    run_logged vipm-build 1800 vipm build "$(basename "$vipb_output")" --labview-version "$LV_YEAR" --labview-bitness 64 --timeout 900 --verbose
+)
 shopt -s nullglob
 vip_files=("$ARTIFACT_ROOT/VI Package/"*.vip)
 if (( ${#vip_files[@]} == 0 )); then
