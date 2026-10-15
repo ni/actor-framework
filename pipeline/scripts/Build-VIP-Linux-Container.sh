@@ -7,8 +7,6 @@ LOG_DIR="$ARTIFACT_ROOT/logs"
 VIPM_DEB_URL="https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb"
 VIPM_DESKTOP_LIVELINESS_TIMEOUT="${VIPM_DESKTOP_LIVELINESS_TIMEOUT:-300}"
 XVFB_PID=""
-BUILTIN_AF_DIR=""
-BUILTIN_AF_BACKUP=""
 
 mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/VI Package" "$ARTIFACT_ROOT/tmp"
 
@@ -61,15 +59,6 @@ on_exit() {
     while IFS= read -r -d '' file; do
         redact_secrets "$file" || true
     done < <(find "$LOG_DIR" -type f -print0 2>/dev/null)
-    if [[ -n "$BUILTIN_AF_BACKUP" && -d "$BUILTIN_AF_BACKUP" ]]; then
-        if [[ -e "$BUILTIN_AF_DIR" ]]; then
-            echo "Cannot restore built-in Actor Framework; destination already exists: $BUILTIN_AF_DIR" >&2
-            (( status != 0 )) || status=1
-        elif ! mv "$BUILTIN_AF_BACKUP" "$BUILTIN_AF_DIR"; then
-            echo "Failed to restore built-in Actor Framework to: $BUILTIN_AF_DIR" >&2
-            (( status != 0 )) || status=1
-        fi
-    fi
     if [[ -n "$XVFB_PID" ]]; then
         kill "$XVFB_PID" 2>/dev/null || true
     fi
@@ -141,31 +130,6 @@ if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
     exit 1
 fi
 
-disable_builtin_actor_framework() {
-    local library_path
-    library_path="$(find /usr/local/natinst -type f -ipath '*/vi.lib/actorframework/actor framework.lvlib' -print -quit 2>/dev/null)"
-    if [[ -z "$library_path" ]]; then
-        echo "Could not find LabVIEW's bundled vi.lib/ActorFramework/Actor Framework.lvlib." >&2
-        exit 1
-    fi
-
-    BUILTIN_AF_DIR="$(dirname "$library_path")"
-    BUILTIN_AF_BACKUP="$ARTIFACT_ROOT/tmp/builtin-actor-framework"
-    if [[ -e "$BUILTIN_AF_BACKUP" ]]; then
-        echo "Temporary built-in Actor Framework backup already exists: $BUILTIN_AF_BACKUP" >&2
-        exit 1
-    fi
-
-    mv "$BUILTIN_AF_DIR" "$BUILTIN_AF_BACKUP"
-    printf 'Temporarily moved bundled Actor Framework outside the LabVIEW tree: %s -> %s\n' "$BUILTIN_AF_DIR" "$BUILTIN_AF_BACKUP"
-    if find /usr/local/natinst -type f -ipath '*/vi.lib/actorframework/actor framework.lvlib' -print -quit 2>/dev/null | grep -q .; then
-        echo 'Another bundled Actor Framework copy remains under the LabVIEW tree; refusing to build.' >&2
-        exit 1
-    fi
-}
-
-disable_builtin_actor_framework
-
 run_logged vipm-download 900 curl --fail --location --retry 3 --retry-all-errors --output /tmp/vipm.deb "$VIPM_DEB_URL"
 if ! run_logged vipm-dpkg-install 900 dpkg -i /tmp/vipm.deb; then
     run_logged apt-repair 900 apt-get -f install -y
@@ -196,52 +160,34 @@ if ! run_logged vipm-refresh 900 vipm refresh --verbose; then
     run_logged vipm-refresh-retry 900 vipm refresh --verbose
 fi
 
-gcli_manifest="$LOG_DIR/gcli-bootstrap.toml"
-cat > "$gcli_manifest" <<EOF
-[project]
-name = "actor-framework-gcli-bootstrap"
-version = "1.0.0"
-labview-version = "$LV_YEAR"
-
-[dependencies]
-wiresmith_technology_lib_g_cli = "3.0.1.98"
-EOF
-if ! run_logged gcli-install 1800 vipm install "$gcli_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
-    echo 'G-CLI package installation failed; retrying once.' >&2
-    sleep 30
-    run_logged gcli-install-retry 1800 vipm install "$gcli_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose
-fi
-if ! command -v g-cli >/dev/null 2>&1; then
-    echo 'G-CLI is unavailable after VIPM installation; cannot apply VIPCs or build the VIP.' >&2
+manifest="$WORKSPACE/Tooling/deployment/runner_dependencies.toml"
+if [[ ! -f "$manifest" ]]; then
+    echo "Dependency manifest not found: $manifest" >&2
     exit 1
 fi
-
-vipc_target="$LV_NUMERIC_VERSION (64-bit)"
-for vipc_name in runner_dependencies Dependencies; do
-    dependencies_vipc="$WORKSPACE/Tooling/deployment/${vipc_name}.vipc"
-    if [[ ! -f "$dependencies_vipc" ]]; then
-        echo "VIPC dependency file not found: $dependencies_vipc" >&2
-        exit 1
-    fi
-    if ! run_logged "vipc-apply-${vipc_name}" 1800 g-cli --lv-ver "$LV_YEAR" --arch 64 --connect-timeout 120000 --kill --kill-timeout 20000 --verbose -v "$WORKSPACE/Tooling/deployment/ApplyVIPC.vi" -- "$dependencies_vipc" "$vipc_target"; then
-        echo "WARNING: ApplyVIPC failed for ${vipc_name}.vipc; continuing to the next G-CLI step." >&2
-        collect_diagnostics "vipc-apply-${vipc_name}-warning"
+linux_manifest="$LOG_DIR/runner_dependencies.linux.toml"
+optional_log="$LOG_DIR/vipm-optional-dependencies.log"
+: > "$optional_log"
+# These G-CLI extensions are not needed by the direct VIPM build; no PPL is built here.
+for package in jki_lib_vipm_api sas_workshops_lib_lvbuildspec_for_g_cli sas_workshops_lib_vipb_builder_for_g_cli; do
+    if grep -Eq "^${package}[[:space:]]*=" "$manifest"; then
+        printf 'Skipping non-required build tooling dependency: %s\n' "$package" | tee -a "$optional_log"
     fi
 done
+awk '
+    /^(jki_lib_vipm_api|sas_workshops_lib_lvbuildspec_for_g_cli|sas_workshops_lib_vipb_builder_for_g_cli)[[:space:]]*=/ { next }
+    { print }
+' "$manifest" > "$linux_manifest"
+if ! run_logged vipm-dependencies 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
+    echo 'Dependency installation failed or timed out; capturing diagnostics and retrying once.' >&2
+    collect_diagnostics 'dependency-install-first-attempt'
+    sleep 30
+    run_logged vipm-dependencies-retry 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose
+fi
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
-staged_core="$ARTIFACT_ROOT/tmp/Core"
-vipb_output="$staged_core/Actor Framework Linux.ci.vipb"
+vipb_output="$ARTIFACT_ROOT/tmp/Actor Framework Linux.ci.vipb"
 vipb_log="$LOG_DIR/vipb-preparation.log"
-if [[ ! -d "$WORKSPACE/Core" ]]; then
-    echo 'Core source directory is missing: Core' >&2
-    exit 1
-fi
-if [[ -e "$staged_core" ]]; then
-    echo "Temporary Core staging directory already exists: $staged_core" >&2
-    exit 1
-fi
-cp -a "$WORKSPACE/Core" "$ARTIFACT_ROOT/tmp/"
 if ! python3 - "$vipb_source" "$vipb_output" "$LV_NUMERIC_VERSION" > "$vipb_log" 2>&1 <<'PY'
 import sys
 import xml.etree.ElementTree as ET
@@ -253,64 +199,6 @@ output = Path(output)
 if not source.is_file():
     raise FileNotFoundError(f"Tracked Core VIPB not found: {source}")
 
-# Some source URLs retain parent traversals from an earlier layout. Repair only
-# references that fail as written and resolve to an existing staged file after
-# removing one or more leading ../ segments.
-staged_root = output.parent.resolve()
-repaired_links = []
-unresolved_links = []
-source_descriptors = sorted(staged_root.rglob("*.lvlib")) + sorted(staged_root.rglob("*.lvclass"))
-for descriptor in source_descriptors:
-    descriptor_tree = ET.parse(descriptor)
-    descriptor_root = descriptor_tree.getroot()
-    changed = False
-    for item in descriptor_root.iter():
-        if item.get("URL"):
-            reference_kind = "URL"
-            reference = item.get("URL")
-        elif item.tag == "Property" and item.get("Name") == "NI.Lib.ContainingLibPath":
-            reference_kind = "NI.Lib.ContainingLibPath"
-            reference = item.text
-        else:
-            continue
-        if not reference or item.get("Type") == "Class Private Data":
-            continue
-        normalized_url = reference.replace("\\", "/")
-        if normalized_url.startswith(("/", "<")):
-            continue
-        original_target = (descriptor.parent / normalized_url).resolve()
-        if original_target.exists():
-            continue
-
-        candidate_url = normalized_url
-        while candidate_url.startswith("../"):
-            candidate_url = candidate_url[3:]
-            candidate_target = (descriptor.parent / candidate_url).resolve()
-            try:
-                candidate_target.relative_to(staged_root)
-            except ValueError:
-                continue
-            if candidate_target.exists():
-                if reference_kind == "URL":
-                    item.set("URL", candidate_url)
-                else:
-                    item.text = candidate_url
-                repaired_links.append(f"{descriptor.relative_to(staged_root)} [{reference_kind}]: {reference} -> {candidate_url}")
-                changed = True
-                break
-        else:
-            unresolved_links.append(f"{descriptor.relative_to(staged_root)} [{reference_kind}]: {reference}")
-
-    if changed:
-        descriptor_tree.write(descriptor, encoding="utf-8", xml_declaration=True)
-
-if unresolved_links:
-    examples = "\n".join(unresolved_links[:25])
-    raise ValueError(f"Unresolved local LabVIEW source URLs ({len(unresolved_links)}):\n{examples}")
-for link in repaired_links:
-    print("Repaired staged source URL: " + link)
-print(f"Repaired {len(repaired_links)} staged LVLib/LVClass source URLs.")
-
 tree = ET.parse(source)
 root = tree.getroot()
 
@@ -321,7 +209,7 @@ def require_node(parent, path):
     return node
 
 general = require_node(root, "Library_General_Settings")
-require_node(general, "Library_Source_Folder").text = "."
+require_node(general, "Library_Source_Folder").text = "/workspace/Core"
 require_node(general, "Library_Output_Folder").text = "/artifacts/VI Package"
 require_node(general, "Package_LabVIEW_Version").text = f"{labview_version} (64-bit)"
 require_node(root, "Advanced_Settings/Install_Requirements/LV_32-Bit").text = "false"
@@ -333,8 +221,7 @@ output.parent.mkdir(parents=True, exist_ok=True)
 ET.indent(tree, space="  ")
 tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared temporary VIPB: {output}")
-print("Staged source root: . (G-CLI build working directory)")
-print("Preserved Core-relative VIPB source paths.")
+print("Source root: /workspace/Core")
 print("LabVIEW target: " + labview_version + " (64-bit)")
 print("Removed missing VIPC reference from the temporary copy.")
 PY
@@ -344,33 +231,7 @@ then
 fi
 cat "$vipb_log"
 
-release_notes="$WORKSPACE/Tooling/deployment/release_notes.md"
-if [[ ! -f "$release_notes" ]]; then
-    echo "Release notes file not found: $release_notes" >&2
-    exit 1
-fi
-package_version="$(python3 - "$vipb_output" <<'PY'
-import sys
-import xml.etree.ElementTree as ET
-from pathlib import Path
-
-vipb = Path(sys.argv[1])
-root = ET.parse(vipb).getroot()
-version = root.findtext("./Library_General_Settings/Library_Version")
-if not version or len(version.split(".")) != 4 or not all(part.isdigit() for part in version.split(".")):
-    raise ValueError(f"Invalid VIPB package version: {version!r}")
-print(version)
-PY
-)"
-IFS=. read -r package_major package_minor package_patch package_build <<< "$package_version"
-display_information=$(printf '{"Package Version":{"major":%s,"minor":%s,"patch":%s,"build":%s},"Product Name":"","Company Name":"","Author Name (Person or Company)":"","Product Homepage (URL)":"","Legal Copyright":"","License Agreement Name":"","Product Description Summary":"","Product Description":"","Release Notes - Change Log":""}' "$package_major" "$package_minor" "$package_patch" "$package_build")
-
-run_logged vipb-display-information 900 g-cli --lv-ver "$LV_YEAR" --arch 64 --connect-timeout 120000 --kill --kill-timeout 20000 --verbose -v "$WORKSPACE/Tooling/deployment/Modify_VIPB_Display_Information.vi" -- "$vipb_output" "$vipc_target" "$display_information"
-
-(
-    cd "$staged_core"
-    run_logged gcli-vipb-build 1800 g-cli --lv-ver "$LV_YEAR" --arch 64 --connect-timeout 120000 --kill --kill-timeout 20000 --verbose vipb -- --buildspec "$vipb_output" -v "$package_version" --release-notes "$release_notes" --timeout 900
-)
+run_logged vipm-build 1800 vipm build "$vipb_output" --labview-version "$LV_YEAR" --labview-bitness 64 --timeout 900 --verbose
 shopt -s nullglob
 vip_files=("$ARTIFACT_ROOT/VI Package/"*.vip)
 if (( ${#vip_files[@]} == 0 )); then
