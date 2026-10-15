@@ -7,6 +7,8 @@ LOG_DIR="$ARTIFACT_ROOT/logs"
 VIPM_DEB_URL="https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb"
 VIPM_DESKTOP_LIVELINESS_TIMEOUT="${VIPM_DESKTOP_LIVELINESS_TIMEOUT:-300}"
 XVFB_PID=""
+BUILTIN_AF_DIR=""
+BUILTIN_AF_BACKUP=""
 
 mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/VI Package" "$ARTIFACT_ROOT/tmp"
 
@@ -59,6 +61,15 @@ on_exit() {
     while IFS= read -r -d '' file; do
         redact_secrets "$file" || true
     done < <(find "$LOG_DIR" -type f -print0 2>/dev/null)
+    if [[ -n "$BUILTIN_AF_BACKUP" && -d "$BUILTIN_AF_BACKUP" ]]; then
+        if [[ -e "$BUILTIN_AF_DIR" ]]; then
+            echo "Cannot restore bundled Actor Framework; destination already exists: $BUILTIN_AF_DIR" >&2
+            (( status != 0 )) || status=1
+        elif ! mv "$BUILTIN_AF_BACKUP" "$BUILTIN_AF_DIR"; then
+            echo "Failed to restore bundled Actor Framework to: $BUILTIN_AF_DIR" >&2
+            (( status != 0 )) || status=1
+        fi
+    fi
     if [[ -n "$XVFB_PID" ]]; then
         kill "$XVFB_PID" 2>/dev/null || true
     fi
@@ -168,26 +179,40 @@ fi
 linux_manifest="$LOG_DIR/runner_dependencies.linux.toml"
 optional_log="$LOG_DIR/vipm-optional-dependencies.log"
 : > "$optional_log"
-# These G-CLI extensions are not needed by the direct VIPM build; no PPL is built here.
-for package in jki_lib_vipm_api sas_workshops_lib_lvbuildspec_for_g_cli sas_workshops_lib_vipb_builder_for_g_cli; do
+# The direct VIPM build does not use the G-CLI VIPB/VIPC plugins or their VIPM API.
+for package in jki_lib_vipm_api sas_workshops_lib_lvbuildspec_for_g_cli sas_workshops_lib_vipb_builder_for_g_cli sas_workshops_lib_vipc_applier_for_g_cli wiresmith_technology_lib_g_cli; do
     if grep -Eq "^${package}[[:space:]]*=" "$manifest"; then
-        printf 'Skipping non-required build tooling dependency: %s\n' "$package" | tee -a "$optional_log"
+        printf 'Skipping G-CLI-only dependency for direct VIPM build: %s\n' "$package" | tee -a "$optional_log"
     fi
 done
 awk '
-    /^(jki_lib_vipm_api|sas_workshops_lib_lvbuildspec_for_g_cli|sas_workshops_lib_vipb_builder_for_g_cli)[[:space:]]*=/ { next }
+    /^(jki_lib_vipm_api|sas_workshops_lib_lvbuildspec_for_g_cli|sas_workshops_lib_vipb_builder_for_g_cli|sas_workshops_lib_vipc_applier_for_g_cli|wiresmith_technology_lib_g_cli)[[:space:]]*=/ { next }
     { print }
 ' "$manifest" > "$linux_manifest"
 if ! run_logged vipm-dependencies 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
     echo 'Dependency installation failed or timed out; capturing diagnostics and retrying once.' >&2
     collect_diagnostics 'dependency-install-first-attempt'
     sleep 30
-    run_logged vipm-dependencies-retry 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose
+    if ! run_logged vipm-dependencies-retry 1800 vipm install "$linux_manifest" --labview-version "$LV_YEAR" --labview-bitness 64 --verbose; then
+        echo 'WARNING: VIPM dependency installation failed after retry; continuing to vipm build.' >&2
+        collect_diagnostics 'dependency-install-warning-continuing'
+    fi
 fi
 
-vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
-vipb_output="$ARTIFACT_ROOT/tmp/Actor Framework Linux.ci.vipb"
+core_source="$WORKSPACE/Core"
+staged_core="$ARTIFACT_ROOT/tmp/Core"
+vipb_source="$staged_core/Actor Framework 2024 for 2020.vipb"
+vipb_output="$staged_core/Actor Framework Linux.ci.vipb"
 vipb_log="$LOG_DIR/vipb-preparation.log"
+if [[ ! -d "$core_source" ]]; then
+    echo "Core source directory not found: $core_source" >&2
+    exit 1
+fi
+if [[ -e "$staged_core" ]]; then
+    echo "Temporary Core staging directory already exists: $staged_core" >&2
+    exit 1
+fi
+cp -a "$core_source" "$ARTIFACT_ROOT/tmp/"
 if ! python3 - "$vipb_source" "$vipb_output" "$LV_NUMERIC_VERSION" > "$vipb_log" 2>&1 <<'PY'
 import sys
 import xml.etree.ElementTree as ET
@@ -199,6 +224,61 @@ output = Path(output)
 if not source.is_file():
     raise FileNotFoundError(f"Tracked Core VIPB not found: {source}")
 
+# Repair only local links that are broken as written but resolve after removing
+# one or more excess leading ../ segments. All edits are confined to staged Core.
+staged_root = output.parent.resolve()
+repaired_links = []
+unresolved_links = []
+descriptors = sorted(staged_root.rglob("*.lvlib")) + sorted(staged_root.rglob("*.lvclass"))
+for descriptor in descriptors:
+    descriptor_tree = ET.parse(descriptor)
+    descriptor_root = descriptor_tree.getroot()
+    changed = False
+    for item in descriptor_root.iter():
+        if item.get("URL"):
+            reference_kind = "URL"
+            reference = item.get("URL")
+        elif item.tag == "Property" and item.get("Name") == "NI.Lib.ContainingLibPath":
+            reference_kind = "NI.Lib.ContainingLibPath"
+            reference = item.text
+        else:
+            continue
+        if not reference or item.get("Type") == "Class Private Data":
+            continue
+
+        reference_path = reference.replace("\\", "/")
+        if reference_path.startswith(("/", "<")):
+            continue
+        if (descriptor.parent / reference_path).resolve().exists():
+            continue
+
+        candidate_path = reference_path
+        while candidate_path.startswith("../"):
+            candidate_path = candidate_path[3:]
+            resolved = (descriptor.parent / candidate_path).resolve()
+            try:
+                resolved.relative_to(staged_root)
+            except ValueError:
+                continue
+            if resolved.exists():
+                if reference_kind == "URL":
+                    item.set("URL", candidate_path)
+                else:
+                    item.text = candidate_path
+                repaired_links.append(f"{descriptor.relative_to(staged_root)} [{reference_kind}]: {reference} -> {candidate_path}")
+                changed = True
+                break
+        else:
+            unresolved_links.append(f"{descriptor.relative_to(staged_root)} [{reference_kind}]: {reference}")
+
+    if changed:
+        descriptor_tree.write(descriptor, encoding="utf-8", xml_declaration=True)
+
+if unresolved_links:
+    examples = "\n".join(unresolved_links[:25])
+    raise ValueError(f"Unresolved local LabVIEW source references ({len(unresolved_links)}):\n{examples}")
+print(f"Repaired {len(repaired_links)} staged LVLib/LVClass source references.")
+
 tree = ET.parse(source)
 root = tree.getroot()
 
@@ -209,7 +289,7 @@ def require_node(parent, path):
     return node
 
 general = require_node(root, "Library_General_Settings")
-require_node(general, "Library_Source_Folder").text = "/workspace/Core"
+require_node(general, "Library_Source_Folder").text = str(output.parent.resolve())
 require_node(general, "Library_Output_Folder").text = "/artifacts/VI Package"
 require_node(general, "Package_LabVIEW_Version").text = f"{labview_version} (64-bit)"
 require_node(root, "Advanced_Settings/Install_Requirements/LV_32-Bit").text = "false"
@@ -221,7 +301,7 @@ output.parent.mkdir(parents=True, exist_ok=True)
 ET.indent(tree, space="  ")
 tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared temporary VIPB: {output}")
-print("Source root: /workspace/Core")
+print("Source root: " + str(output.parent.resolve()))
 print("LabVIEW target: " + labview_version + " (64-bit)")
 print("Removed missing VIPC reference from the temporary copy.")
 PY
