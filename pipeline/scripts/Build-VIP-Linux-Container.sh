@@ -316,7 +316,7 @@ def require_node(parent, path):
     return node
 
 general = require_node(root, "Library_General_Settings")
-require_node(general, "Library_Source_Folder").text = "."
+require_node(general, "Library_Source_Folder").text = str(output.parent.resolve())
 require_node(general, "Library_Output_Folder").text = "/artifacts/VI Package"
 require_node(general, "Package_LabVIEW_Version").text = f"{labview_version} (64-bit)"
 require_node(root, "Advanced_Settings/Install_Requirements/LV_32-Bit").text = "false"
@@ -328,7 +328,7 @@ output.parent.mkdir(parents=True, exist_ok=True)
 ET.indent(tree, space="  ")
 tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared temporary VIPB: {output}")
-print("Staged source root: " + str(source.parent))
+print("Staged source root: " + str(output.parent.resolve()))
 print("Preserved Core-relative VIPB source paths.")
 print("LabVIEW target: " + labview_version + " (64-bit)")
 print("Removed missing VIPC reference from the temporary copy.")
