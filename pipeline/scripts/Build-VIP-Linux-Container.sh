@@ -152,12 +152,53 @@ install_distribution() {
     diff -qr "$DISTRIBUTION/vi.lib/ActorFramework" "$LV_ROOT/vi.lib/ActorFramework"
     diff -qr "$DISTRIBUTION/resource/AFDebug" "$LV_ROOT/resource/AFDebug"
     cp -a "$WORKSPACE/Core/Install Support" "$LV_ROOT/"
-    printf 'Installed distribution at %s; no source-reference rewriting performed.\n' "$LV_ROOT"
+    printf 'Installed distribution at %s\n' "$LV_ROOT"
 }
 
 replacement_log="$LOG_DIR/distribution-install.log"
 install_distribution > "$replacement_log" 2>&1
 cat "$replacement_log"
+
+# TEMPORARY: the artifact keeps AFDebug's repo-relative links (Core/AFDebug -> ../ActorFramework); remove once the artifact is fixed.
+relink_log="$LOG_DIR/afdebug-relink.log"
+python3 - "$LV_ROOT" > "$relink_log" 2>&1 <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
+from xml.sax.saxutils import escape, unescape
+
+root = Path(sys.argv[1])
+wrong = os.path.normpath(root / "resource/ActorFramework")
+right = os.path.normpath(root / "vi.lib/ActorFramework")
+entities = {'"': "&quot;"}
+total = 0
+for path in sorted((root / "resource/AFDebug").rglob("*")):
+    if path.suffix not in (".lvlib", ".lvclass") or not path.is_file():
+        continue
+    text = path.read_bytes().decode("latin-1")
+    changes = []
+
+    def relink(match):
+        url = unescape(match.group(1), {"&quot;": '"'})
+        # LabVIEW resolves library/class URLs relative to the file path itself.
+        target = os.path.normpath(os.path.join(path, url))
+        if target != wrong and not target.startswith(wrong + os.sep):
+            return match.group(0)
+        new_url = os.path.relpath(right + target[len(wrong):], path).replace(os.sep, "/")
+        changes.append(f"{url} -> {new_url}")
+        return f'URL="{escape(new_url, entities)}"'
+
+    updated = re.sub(r'URL="([^"]*)"', relink, text)
+    if changes:
+        path.write_bytes(updated.encode("latin-1"))
+        total += len(changes)
+        print(path.relative_to(root))
+        for change in changes:
+            print(f"    {change}")
+print(f"Rewrote {total} AFDebug URL(s) from resource/ActorFramework to vi.lib/ActorFramework.")
+PY
+cat "$relink_log"
 
 run_logged vipm-download 900 curl --fail --location --retry 3 --retry-all-errors --output /tmp/vipm.deb "$VIPM_DEB_URL"
 if ! run_logged vipm-dpkg-install 900 dpkg -i /tmp/vipm.deb; then
@@ -292,7 +333,7 @@ tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared {output} from {source}")
 print(f"Installed source root: {installed}; selected {len(allowed)} files; excluded {len(excluded)} paths")
 print("Core package only: Providers are installed for validation but excluded from the VIP.")
-print("Preserved LabVIEW version/bitness metadata; no LVLib/LVClass/VI link rewriting.")
+print("Preserved LabVIEW version/bitness metadata; AFDebug links relinked earlier (see afdebug-relink.log).")
 PY
 cat "$LOG_DIR/vipb-preparation.log"
 
