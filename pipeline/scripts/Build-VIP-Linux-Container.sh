@@ -6,7 +6,7 @@ DISTRIBUTION=/distribution
 ARTIFACT_ROOT=/artifacts
 LOG_DIR="$ARTIFACT_ROOT/logs"
 VIPM_DEB_URL="https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb"
-VIPM_DESKTOP_LIVELINESS_TIMEOUT="${VIPM_DESKTOP_LIVELINESS_TIMEOUT:-300}"
+VIPM_DESKTOP_LIVELINESS_TIMEOUT="${VIPM_DESKTOP_LIVELINESS_TIMEOUT:-900}"
 XVFB_PID=""
 
 mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/Builds" "$ARTIFACT_ROOT/tmp"
@@ -225,7 +225,7 @@ if [[ -z "$labview_cli" ]]; then
     echo 'LabVIEWCLI executable not found; cannot mass compile the installed distribution.' >&2
     exit 1
 fi
-run_logged mass-compile 1800 "$labview_cli" -LabVIEWPath "$LV_ROOT/labviewprofull" -OperationName MassCompile -DirectoryToCompile "$LV_ROOT/vi.lib/ActorFramework" -MassCompileLogFile "$LOG_DIR/actor-framework-masscompile.log" -Headless
+run_logged mass-compile 1800 "$labview_cli" -LabVIEWPath "$LV_ROOT/labview" -OperationName MassCompile -DirectoryToCompile "$LV_ROOT/vi.lib/ActorFramework" -MassCompileLogFile "$LOG_DIR/actor-framework-masscompile.log" -Headless
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
 vipb_output="$LOG_DIR/Actor Framework Distribution.vipb"
