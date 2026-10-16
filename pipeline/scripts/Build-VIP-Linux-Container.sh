@@ -10,6 +10,8 @@ VIPM_DESKTOP_LIVELINESS_TIMEOUT="${VIPM_DESKTOP_LIVELINESS_TIMEOUT:-900}"
 XVFB_PID=""
 
 mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/Builds" "$ARTIFACT_ROOT/tmp"
+RUN_START_MARKER="$ARTIFACT_ROOT/tmp/.run-start"
+touch "$RUN_START_MARKER"
 
 redact_secrets() {
     local file="$1"
@@ -44,14 +46,18 @@ collect_diagnostics() {
         tail -n 100 "$LOG_DIR/xvfb.log" 2>/dev/null || true
     } > "$LOG_DIR/diagnostics.log"
 
-    mkdir -p "$LOG_DIR/vipm-desktop-logs"
-    for base in "$HOME/.config/JKI/VIPM" "$HOME/.local/share/JKI/VIPM" "$HOME/.cache/JKI/VIPM" /var/log/JKI/VIPM; do
-        [[ -d "$base" ]] || continue
-        while IFS= read -r -d '' file; do
-            index=$((index + 1))
-            cp "$file" "$LOG_DIR/vipm-desktop-logs/vipm-${index}.log" 2>/dev/null || true
-        done < <(find "$base" -type f -iname '*.log' -print0 2>/dev/null)
-    done
+    # A modal LabVIEW/VIPM dialog on the virtual display is invisible in text logs.
+    if command -v import >/dev/null 2>&1 && xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
+        timeout 30s import -display "$DISPLAY" -window root "$LOG_DIR/screen-${status}.png" 2>/dev/null || true
+    fi
+
+    mkdir -p "$LOG_DIR/runtime-logs"
+    : > "$LOG_DIR/runtime-logs/index.txt"
+    while IFS= read -r -d '' file; do
+        index=$((index + 1))
+        cp "$file" "$LOG_DIR/runtime-logs/${index}-$(basename "$file")" 2>/dev/null || true
+        printf '%s\t%s\n' "$index" "$file" >> "$LOG_DIR/runtime-logs/index.txt"
+    done < <(find "$HOME" /tmp /var/log /usr/local/natinst -xdev -type f -iname '*.log' -size -20M -newer "$RUN_START_MARKER" -not -path "$LOG_DIR/*" -print0 2>/dev/null)
 }
 
 on_exit() {
@@ -111,7 +117,7 @@ export VIPM_DESKTOP_LIVELINESS_TIMEOUT
 export VIPM_LABVIEW_LAUNCH_TIMEOUT=300
 
 run_logged apt-update 600 apt-get update
-run_logged apt-install 900 apt-get install -y --no-install-recommends ca-certificates curl perl procps python3 x11-utils xvfb
+run_logged apt-install 900 apt-get install -y --no-install-recommends ca-certificates curl imagemagick perl procps python3 x11-utils xvfb
 
 mkdir -p /tmp/natinst
 printf '1\n' > /tmp/natinst/LVContainer.txt
