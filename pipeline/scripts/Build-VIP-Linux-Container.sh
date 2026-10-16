@@ -225,7 +225,11 @@ if [[ -z "$labview_cli" ]]; then
     echo 'LabVIEWCLI executable not found; cannot mass compile the installed distribution.' >&2
     exit 1
 fi
-run_logged mass-compile 1800 "$labview_cli" -LabVIEWPath "$LV_ROOT/labview" -OperationName MassCompile -DirectoryToCompile "$LV_ROOT/vi.lib/ActorFramework" -MassCompileLogFile "$LOG_DIR/actor-framework-masscompile.log" -Headless
+# VIPM reads saved linker info, so every packaged VI tree must be resaved at its installed location.
+for compile_dir in vi.lib/ActorFramework resource/AFDebug 'Install Support'; do
+    compile_name="mass-compile-${compile_dir//[\/ ]/-}"
+    run_logged "$compile_name" 1800 "$labview_cli" -LabVIEWPath "$LV_ROOT/labview" -OperationName MassCompile -DirectoryToCompile "$LV_ROOT/$compile_dir" -MassCompileLogFile "$LOG_DIR/${compile_name}-labview.log" -Headless
+done
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
 vipb_output="$LOG_DIR/Actor Framework Distribution.vipb"
