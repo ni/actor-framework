@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-WORKSPACE=/workspace
+WORKSPACE=/build-inputs
+DISTRIBUTION=/distribution
 ARTIFACT_ROOT=/artifacts
 LOG_DIR="$ARTIFACT_ROOT/logs"
 VIPM_DEB_URL="https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb"
 VIPM_DESKTOP_LIVELINESS_TIMEOUT="${VIPM_DESKTOP_LIVELINESS_TIMEOUT:-300}"
 XVFB_PID=""
-BUILTIN_AF_DIR=""
-BUILTIN_AF_BACKUP=""
 
-mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/VI Package" "$ARTIFACT_ROOT/tmp"
+mkdir -p "$LOG_DIR" "$ARTIFACT_ROOT/Builds" "$ARTIFACT_ROOT/tmp"
 
 redact_secrets() {
     local file="$1"
@@ -61,16 +60,6 @@ on_exit() {
     while IFS= read -r -d '' file; do
         redact_secrets "$file" || true
     done < <(find "$LOG_DIR" -type f -print0 2>/dev/null)
-    if [[ -n "$BUILTIN_AF_BACKUP" && -d "$BUILTIN_AF_BACKUP" ]]; then
-        if [[ -e "$BUILTIN_AF_DIR" ]] && ! mv "$BUILTIN_AF_DIR" "$ARTIFACT_ROOT/tmp/repository-actor-framework-after-build"; then
-            echo "Failed to move repository Actor Framework aside: $BUILTIN_AF_DIR" >&2
-            (( status != 0 )) || status=1
-        fi
-        if [[ ! -e "$BUILTIN_AF_DIR" ]] && ! mv "$BUILTIN_AF_BACKUP" "$BUILTIN_AF_DIR"; then
-            echo "Failed to restore bundled Actor Framework to: $BUILTIN_AF_DIR" >&2
-            (( status != 0 )) || status=1
-        fi
-    fi
     if [[ -n "$XVFB_PID" ]]; then
         kill "$XVFB_PID" 2>/dev/null || true
     fi
@@ -142,29 +131,32 @@ if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
     exit 1
 fi
 
-replace_container_actor_framework() {
-    local source_dir="$WORKSPACE/Core/ActorFramework"
-    local installed_dir="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/vi.lib/ActorFramework"
-    local backup_dir="$ARTIFACT_ROOT/tmp/bundled-actor-framework"
-    if [[ ! -f "$source_dir/Actor Framework.lvlib" || ! -f "$installed_dir/Actor Framework.lvlib" ]]; then
-        echo "Expected Actor Framework library missing from $source_dir or $installed_dir" >&2
-        return 1
-    fi
-    if [[ -e "$backup_dir" || -e "$ARTIFACT_ROOT/tmp/repository-actor-framework-after-build" ]]; then
-        echo 'Actor Framework backup directories already exist; refusing to overwrite them.' >&2
-        return 1
-    fi
-    mv "$installed_dir" "$backup_dir"
-    BUILTIN_AF_DIR="$installed_dir"
-    BUILTIN_AF_BACKUP="$backup_dir"
-    cp -a "$source_dir" "$installed_dir"
-    diff -qr "$source_dir" "$installed_dir"
-    printf 'Replaced container Actor Framework: %s -> %s\n' "$source_dir" "$installed_dir"
-    printf 'Bundled Actor Framework backup: %s\n' "$backup_dir"
+LV_ROOT="/usr/local/natinst/LabVIEW-${LV_YEAR}-64"
+install_distribution() {
+    local relative_path
+    local folder
+    [[ -d "$LV_ROOT/vi.lib" ]] || { echo "LabVIEW root not found: $LV_ROOT" >&2; return 1; }
+    for relative_path in 'vi.lib/ActorFramework/Actor Framework.lvlib' 'resource/AFDebug/AF Debug.lvlib'; do
+        [[ -f "$DISTRIBUTION/$relative_path" ]] || { echo "Distribution file missing: $relative_path" >&2; return 1; }
+    done
+    for relative_path in vi.lib/ActorFramework resource/AFDebug; do
+        if [[ -e "$LV_ROOT/$relative_path" ]]; then
+            mv "$LV_ROOT/$relative_path" "/tmp/af-original-$(basename "$relative_path")"
+        fi
+    done
+    for folder in vi.lib resource menus; do
+        [[ -d "$DISTRIBUTION/$folder" ]] || { echo "Distribution folder missing: $folder" >&2; return 1; }
+        mkdir -p "$LV_ROOT/$folder"
+        cp -a "$DISTRIBUTION/$folder/." "$LV_ROOT/$folder/"
+    done
+    diff -qr "$DISTRIBUTION/vi.lib/ActorFramework" "$LV_ROOT/vi.lib/ActorFramework"
+    diff -qr "$DISTRIBUTION/resource/AFDebug" "$LV_ROOT/resource/AFDebug"
+    cp -a "$WORKSPACE/Core/Install Support" "$LV_ROOT/"
+    printf 'Installed distribution at %s; no source-reference rewriting performed.\n' "$LV_ROOT"
 }
 
-replacement_log="$LOG_DIR/actor-framework-replacement.log"
-replace_container_actor_framework > "$replacement_log" 2>&1
+replacement_log="$LOG_DIR/distribution-install.log"
+install_distribution > "$replacement_log" 2>&1
 cat "$replacement_log"
 
 run_logged vipm-download 900 curl --fail --location --retry 3 --retry-all-errors --output /tmp/vipm.deb "$VIPM_DEB_URL"
@@ -225,15 +217,84 @@ if ! run_logged vipm-dependencies 1800 vipm install "$linux_manifest" --labview-
     fi
 fi
 
-vipb_output="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
-if [[ ! -f "$vipb_output" ]]; then
-    echo "Repository VIPB not found: $vipb_output" >&2
+labview_cli="$(command -v LabVIEWCLI || true)"
+if [[ -z "$labview_cli" ]]; then
+    labview_cli="$(find /usr/local/natinst -type f -name LabVIEWCLI -perm /111 -print -quit)"
+fi
+if [[ -z "$labview_cli" ]]; then
+    echo 'LabVIEWCLI executable not found; cannot mass compile the installed distribution.' >&2
     exit 1
 fi
+run_logged mass-compile 1800 "$labview_cli" -OperationName MassCompile -DirectoryToCompile "$LV_ROOT/vi.lib/ActorFramework" -MassCompileLogFile "$LOG_DIR/actor-framework-masscompile.log" -Headless
+
+vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
+vipb_output="$LOG_DIR/Actor Framework Distribution.vipb"
+python3 - "$vipb_source" "$vipb_output" "$LV_ROOT" "$DISTRIBUTION" > "$LOG_DIR/vipb-preparation.log" 2>&1 <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+source, output, installed, distribution = map(Path, sys.argv[1:])
+tree = ET.parse(source)
+root = tree.getroot()
+general = root.find("Library_General_Settings")
+general.find("Library_Source_Folder").text = str(installed)
+general.find("Library_Output_Folder").text = "/artifacts/Builds"
+advanced = root.find("Advanced_Settings")
+advanced.find("License_Agreement_Filepath").text = "/build-inputs/LICENSE.txt"
+advanced.find("VI_Package_Configuration_File").text = ""
+for action in advanced.find("Custom_Action_VIs"):
+    if action.text:
+        action.text = str(installed / action.text.replace("\\", "/"))
+
+mapping = {
+    "ActorFramework": "vi.lib/ActorFramework",
+    "AFDebug": "resource/AFDebug",
+    "Menus": "menus",
+    "Menus/Categories": "menus/Categories",
+    "Menus/Controls": "menus/Controls",
+}
+sources = advanced.find("Source_Files")
+for override in sources.findall("Destination_Overrides"):
+    path = override.find("Path")
+    path.text = mapping.get(path.text, path.text)
+for node in list(sources.findall("Exclusions")) + list(sources.findall("Place_Folder_Contents")):
+    sources.remove(node)
+for band in ("vi.lib", "resource", "menus"):
+    ET.SubElement(ET.SubElement(sources, "Place_Folder_Contents"), "Path").text = band
+
+allowed = set()
+for band in ("vi.lib/ActorFramework", "resource/AFDebug", "menus"):
+    allowed.update(path.relative_to(distribution).as_posix() for path in (distribution / band).rglob("*") if path.is_file())
+allowed.update(path.relative_to(installed).as_posix() for path in (installed / "Install Support").rglob("*") if path.is_file())
+ancestors = {parent.as_posix() for path in allowed for parent in Path(path).parents}
+excluded = []
+def exclude_unselected(directory):
+    for child in sorted(directory.iterdir()):
+        relative = child.relative_to(installed).as_posix()
+        if relative in allowed:
+            continue
+        if relative in ancestors and child.is_dir() and not child.is_symlink():
+            exclude_unselected(child)
+        else:
+            excluded.append(relative)
+exclude_unselected(installed)
+for path in excluded:
+    ET.SubElement(ET.SubElement(sources, "Exclusions"), "Path").text = path
+missing = [path for path in allowed if not (installed / path).is_file()]
+if missing:
+    raise ValueError(f"Installed distribution files missing: {missing[:20]}")
+tree.write(output, encoding="utf-8", xml_declaration=True)
+print(f"Prepared {output} from {source}")
+print(f"Installed source root: {installed}; selected {len(allowed)} files; excluded {len(excluded)} paths")
+print("Core package only: Providers are installed for validation but excluded from the VIP.")
+print("Preserved LabVIEW version/bitness metadata; no LVLib/LVClass/VI link rewriting.")
+PY
+cat "$LOG_DIR/vipb-preparation.log"
 
 run_logged vipm-build 1800 vipm build "$vipb_output" --labview-version "$LV_YEAR" --labview-bitness 64 --timeout 900 --verbose
 shopt -s nullglob
-vip_files=("$ARTIFACT_ROOT/VI Package/"*.vip)
+vip_files=("$ARTIFACT_ROOT/Builds/"*.vip)
 if (( ${#vip_files[@]} == 0 )); then
     echo 'VIPM reported success but produced no .vip under the artifact output directory.' >&2
     exit 1
