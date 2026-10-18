@@ -66,6 +66,8 @@ on_exit() {
     while IFS= read -r -d '' file; do
         redact_secrets "$file" || true
     done < <(find "$LOG_DIR" -type f -print0 2>/dev/null)
+    # Files are root-owned inside the container; the runner user uploads them.
+    chmod -R a+rX "$LOG_DIR" "$ARTIFACT_ROOT/Builds" 2>/dev/null || true
     if [[ -n "$XVFB_PID" ]]; then
         kill "$XVFB_PID" 2>/dev/null || true
     fi
@@ -138,73 +140,35 @@ if ! xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
 fi
 
 LV_ROOT="/usr/local/natinst/LabVIEW-${LV_YEAR}-64"
-install_distribution() {
+SOURCE_ROOT=/tmp/af-source/Core
+# The artifact's files keep links saved for the repo layout, so rebuild that layout outside LabVIEW.
+stage_distribution_source() {
     local relative_path
-    local folder
     [[ -d "$LV_ROOT/vi.lib" ]] || { echo "LabVIEW root not found: $LV_ROOT" >&2; return 1; }
-    for relative_path in 'vi.lib/ActorFramework/Actor Framework.lvlib' 'resource/AFDebug/AF Debug.lvlib'; do
-        [[ -f "$DISTRIBUTION/$relative_path" ]] || { echo "Distribution file missing: $relative_path" >&2; return 1; }
+    for relative_path in 'vi.lib/ActorFramework/Actor Framework.lvlib' 'resource/AFDebug/AF Debug.lvlib' menus; do
+        [[ -e "$DISTRIBUTION/$relative_path" ]] || { echo "Distribution path missing: $relative_path" >&2; return 1; }
     done
+    # LabVIEW's bundled copies would cross-link with the staged ones (VIPM Code 42).
     for relative_path in vi.lib/ActorFramework resource/AFDebug; do
         if [[ -e "$LV_ROOT/$relative_path" ]]; then
             mv "$LV_ROOT/$relative_path" "/tmp/af-original-$(basename "$relative_path")"
+            printf 'Moved bundled %s out of LabVIEW\n' "$relative_path"
         fi
     done
-    for folder in vi.lib resource menus; do
-        [[ -d "$DISTRIBUTION/$folder" ]] || { echo "Distribution folder missing: $folder" >&2; return 1; }
-        mkdir -p "$LV_ROOT/$folder"
-        cp -a "$DISTRIBUTION/$folder/." "$LV_ROOT/$folder/"
-    done
-    diff -qr "$DISTRIBUTION/vi.lib/ActorFramework" "$LV_ROOT/vi.lib/ActorFramework"
-    diff -qr "$DISTRIBUTION/resource/AFDebug" "$LV_ROOT/resource/AFDebug"
-    cp -a "$WORKSPACE/Core/Install Support" "$LV_ROOT/"
-    printf 'Installed distribution at %s\n' "$LV_ROOT"
+    mkdir -p "$SOURCE_ROOT"
+    cp -a "$DISTRIBUTION/vi.lib/ActorFramework" "$SOURCE_ROOT/ActorFramework"
+    cp -a "$DISTRIBUTION/resource/AFDebug" "$SOURCE_ROOT/AFDebug"
+    cp -a "$DISTRIBUTION/menus" "$SOURCE_ROOT/Menus"
+    cp -a "$WORKSPACE/Core/Install Support" "$SOURCE_ROOT/"
+    diff -qr "$DISTRIBUTION/vi.lib/ActorFramework" "$SOURCE_ROOT/ActorFramework"
+    diff -qr "$DISTRIBUTION/resource/AFDebug" "$SOURCE_ROOT/AFDebug"
+    diff -qr "$DISTRIBUTION/menus" "$SOURCE_ROOT/Menus"
+    printf 'Staged distribution in repo layout at %s\n' "$SOURCE_ROOT"
 }
 
-replacement_log="$LOG_DIR/distribution-install.log"
-install_distribution > "$replacement_log" 2>&1
-cat "$replacement_log"
-
-# TEMPORARY: the artifact keeps AFDebug's repo-relative links (Core/AFDebug -> ../ActorFramework); remove once the artifact is fixed.
-relink_log="$LOG_DIR/afdebug-relink.log"
-python3 - "$LV_ROOT" > "$relink_log" 2>&1 <<'PY'
-import os
-import re
-import sys
-from pathlib import Path
-from xml.sax.saxutils import escape, unescape
-
-root = Path(sys.argv[1])
-wrong = os.path.normpath(root / "resource/ActorFramework")
-right = os.path.normpath(root / "vi.lib/ActorFramework")
-entities = {'"': "&quot;"}
-total = 0
-for path in sorted((root / "resource/AFDebug").rglob("*")):
-    if path.suffix not in (".lvlib", ".lvclass") or not path.is_file():
-        continue
-    text = path.read_bytes().decode("latin-1")
-    changes = []
-
-    def relink(match):
-        url = unescape(match.group(1), {"&quot;": '"'})
-        # LabVIEW resolves library/class URLs relative to the file path itself.
-        target = os.path.normpath(os.path.join(path, url))
-        if target != wrong and not target.startswith(wrong + os.sep):
-            return match.group(0)
-        new_url = os.path.relpath(right + target[len(wrong):], path).replace(os.sep, "/")
-        changes.append(f"{url} -> {new_url}")
-        return f'URL="{escape(new_url, entities)}"'
-
-    updated = re.sub(r'URL="([^"]*)"', relink, text)
-    if changes:
-        path.write_bytes(updated.encode("latin-1"))
-        total += len(changes)
-        print(path.relative_to(root))
-        for change in changes:
-            print(f"    {change}")
-print(f"Rewrote {total} AFDebug URL(s) from resource/ActorFramework to vi.lib/ActorFramework.")
-PY
-cat "$relink_log"
+staging_log="$LOG_DIR/distribution-staging.log"
+stage_distribution_source > "$staging_log" 2>&1
+cat "$staging_log"
 
 run_logged vipm-download 900 curl --fail --location --retry 3 --retry-all-errors --output /tmp/vipm.deb "$VIPM_DEB_URL"
 if ! run_logged vipm-dpkg-install 900 dpkg -i /tmp/vipm.deb; then
@@ -269,77 +233,38 @@ if [[ -z "$labview_cli" ]]; then
     labview_cli="$(find /usr/local/natinst -type f -name LabVIEWCLI -perm /111 -print -quit)"
 fi
 if [[ -z "$labview_cli" ]]; then
-    echo 'LabVIEWCLI executable not found; cannot mass compile the installed distribution.' >&2
+    echo 'LabVIEWCLI executable not found; cannot mass compile the staged distribution.' >&2
     exit 1
 fi
-# VIPM reads saved linker info, so every packaged VI tree must be resaved at its installed location.
-for compile_dir in vi.lib/ActorFramework resource/AFDebug 'Install Support'; do
-    compile_name="mass-compile-${compile_dir//[\/ ]/-}"
-    run_logged "$compile_name" 1800 "$labview_cli" -LabVIEWPath "$LV_ROOT/labview" -OperationName MassCompile -DirectoryToCompile "$LV_ROOT/$compile_dir" -MassCompileLogFile "$LOG_DIR/${compile_name}-labview.log" -Headless
-done
+# Resaves the 2020-era files in LabVIEW 2026 at their staged location; VIPM reads saved linker info.
+run_logged mass-compile 1800 "$labview_cli" -LabVIEWPath "$LV_ROOT/labview" -OperationName MassCompile -DirectoryToCompile "$SOURCE_ROOT" -MassCompileLogFile "$LOG_DIR/mass-compile-labview.log" -Headless
 
 vipb_source="$WORKSPACE/Core/Actor Framework 2024 for 2020.vipb"
 vipb_output="$LOG_DIR/Actor Framework Distribution.vipb"
-python3 - "$vipb_source" "$vipb_output" "$LV_ROOT" "$DISTRIBUTION" > "$LOG_DIR/vipb-preparation.log" 2>&1 <<'PY'
+python3 - "$vipb_source" "$vipb_output" "$SOURCE_ROOT" > "$LOG_DIR/vipb-preparation.log" 2>&1 <<'PY'
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-source, output, installed, distribution = map(Path, sys.argv[1:])
+source, output, source_root = map(Path, sys.argv[1:])
 tree = ET.parse(source)
 root = tree.getroot()
 general = root.find("Library_General_Settings")
-general.find("Library_Source_Folder").text = str(installed)
+general.find("Library_Source_Folder").text = str(source_root)
 general.find("Library_Output_Folder").text = "/artifacts/Builds"
 advanced = root.find("Advanced_Settings")
 advanced.find("License_Agreement_Filepath").text = "/build-inputs/LICENSE.txt"
+# The named VIPC is not tracked in the repository.
 advanced.find("VI_Package_Configuration_File").text = ""
 for action in advanced.find("Custom_Action_VIs"):
     if action.text:
-        action.text = str(installed / action.text.replace("\\", "/"))
-
-mapping = {
-    "ActorFramework": "vi.lib/ActorFramework",
-    "AFDebug": "resource/AFDebug",
-    "Menus": "menus",
-    "Menus/Categories": "menus/Categories",
-    "Menus/Controls": "menus/Controls",
-}
-sources = advanced.find("Source_Files")
-for override in sources.findall("Destination_Overrides"):
-    path = override.find("Path")
-    path.text = mapping.get(path.text, path.text)
-for node in list(sources.findall("Exclusions")) + list(sources.findall("Place_Folder_Contents")):
-    sources.remove(node)
-for band in ("vi.lib", "resource", "menus"):
-    ET.SubElement(ET.SubElement(sources, "Place_Folder_Contents"), "Path").text = band
-
-allowed = set()
-for band in ("vi.lib/ActorFramework", "resource/AFDebug", "menus"):
-    allowed.update(path.relative_to(distribution).as_posix() for path in (distribution / band).rglob("*") if path.is_file())
-allowed.update(path.relative_to(installed).as_posix() for path in (installed / "Install Support").rglob("*") if path.is_file())
-ancestors = {parent.as_posix() for path in allowed for parent in Path(path).parents}
-excluded = []
-def exclude_unselected(directory):
-    for child in sorted(directory.iterdir()):
-        relative = child.relative_to(installed).as_posix()
-        if relative in allowed:
-            continue
-        if relative in ancestors and child.is_dir() and not child.is_symlink():
-            exclude_unselected(child)
-        else:
-            excluded.append(relative)
-exclude_unselected(installed)
-for path in excluded:
-    ET.SubElement(ET.SubElement(sources, "Exclusions"), "Path").text = path
-missing = [path for path in allowed if not (installed / path).is_file()]
-if missing:
-    raise ValueError(f"Installed distribution files missing: {missing[:20]}")
+        action_path = source_root / action.text.replace("\\", "/")
+        if not action_path.is_file():
+            raise FileNotFoundError(action_path)
+        action.text = str(action_path)
 tree.write(output, encoding="utf-8", xml_declaration=True)
 print(f"Prepared {output} from {source}")
-print(f"Installed source root: {installed}; selected {len(allowed)} files; excluded {len(excluded)} paths")
-print("Core package only: Providers are installed for validation but excluded from the VIP.")
-print("Preserved LabVIEW version/bitness metadata; AFDebug links relinked earlier (see afdebug-relink.log).")
+print(f"Source folder: {source_root}; original destination mappings and exclusions unchanged.")
 PY
 cat "$LOG_DIR/vipb-preparation.log"
 
