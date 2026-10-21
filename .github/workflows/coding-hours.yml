@@ -11,15 +11,13 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
 ###############################################################################
 # Job 1 – run git‑hours (Go), build badge, commit to `metrics`
 ###############################################################################
   report:
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
@@ -38,10 +36,12 @@ jobs:
         git-hours -h | head -n 1
 
     - name: Generate raw report
+      env:
+        WINDOW_START: ${{ github.event.inputs.window_start }}
       run: |
         ARGS=""
-        if [ -n "${{ github.event.inputs.window_start }}" ]; then
-          ARGS+=" -since ${{ github.event.inputs.window_start }}"
+        if [ -n "$WINDOW_START" ]; then
+          ARGS+=" -since $WINDOW_START"
         fi
         git-hours $ARGS > raw.txt
         cat raw.txt
@@ -143,107 +143,3 @@ jobs:
 
         git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} metrics \
         || git push --force-with-lease https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} metrics
-
-
-###############################################################################
-# Job 2 – build Site & upload Pages artifact
-###############################################################################
-  build-site:
-    needs: report
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - uses: actions/download-artifact@v4
-      with: { name: git-hours-json, path: tmp }
-
-    - name: Build KPIs site
-      run: |
-        DATE=$(date +%F)
-        mkdir -p site/data
-        cp tmp/git-hours.json "site/data/git-hours-${DATE}.json"
-        cp tmp/git-hours.json site/git-hours-latest.json
-
-        # (HTML generator unchanged)
-
-        python - <<'PY'
-        import json, datetime, pathlib, html, textwrap
-        data  = json.load(open('tmp/git-hours.json'))
-        total = data['total']
-        labels = [html.escape(k) for k in data if k != 'total']
-        rows = "\n".join(
-            f"<tr><td>{l}</td><td>{data[l]['hours']}</td><td>{data[l]['commits']}</td></tr>"
-            for l in labels)
-
-        page = f"""
-        <!doctype html><html lang='en'><head>
-          <meta charset='utf-8'>
-          <title>Collaborator KPIs</title>
-          <link rel='stylesheet'
-                href='https://cdn.jsdelivr.net/npm/simpledotcss/simple.min.css'>
-          <script src='https://cdn.jsdelivr.net/npm/sortable-tablesort/sortable.min.js' defer></script>
-          <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
-          <style>canvas{{max-height:400px}}</style>
-        </head><body><main>
-          <h1>Collaborator KPIs</h1>
-          <p><em>Last updated {datetime.datetime.utcnow():%Y‑%m‑%d %H:%M UTC}</em></p>
-
-          <h2>Totals</h2>
-          <ul>
-            <li><strong>Hours</strong>: {total['hours']}</li>
-            <li><strong>Commits</strong>: {total['commits']}</li>
-            <li><strong>Contributors</strong>: {len(data)-1}</li>
-          </ul>
-
-          <h2>Hours per contributor</h2>
-          <canvas id='hoursChart'></canvas>
-
-          <h2>Detail table</h2>
-          <table class='sortable'>
-            <thead><tr><th>Contributor</th><th>Hours</th><th>Commits</th></tr></thead>
-            <tbody>{rows}</tbody>
-          </table>
-
-          <p>Historical JSON snapshots live in <code>/data</code>.</p>
-
-          <script>
-            fetch('git-hours-latest.json')
-              .then(r => r.json())
-              .then(d => {{
-                const labels = Object.keys(d).filter(k => k !== 'total');
-                const hours  = labels.map(l => d[l].hours);
-                new Chart(document.getElementById('hoursChart'), {{
-                  type: 'bar',
-                  data: {{ labels, datasets:[{{label:'Hours',data:hours}}] }},
-                  options: {{
-                    responsive:true, maintainAspectRatio:false,
-                    plugins:{{legend:{{display:false}}}},
-                    scales:{{y:{{beginAtZero:true}}}}
-                  }}
-                }});
-              }});
-          </script>
-        </main></body></html>
-        """
-        pathlib.Path('site/index.html').write_text(textwrap.dedent(page))
-        PY
-
-    # ───────────────────── PATCH ② bump to v3 (uses artifact@v4) ──────
-    - uses: actions/upload-pages-artifact@v3
-      with: { path: site }
-    # ───────────────────────────────────────────────────────────────────
-
-###############################################################################
-# Job 3 – deploy to GitHub Pages
-###############################################################################
-  deploy-pages:
-    needs: build-site
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-    - id: deployment
-      uses: actions/deploy-pages@v4

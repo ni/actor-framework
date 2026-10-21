@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - develop
+      - releases/*
       - release-alpha/*
       - release-beta/*
       - release-rc/*
@@ -12,7 +12,7 @@ on:
   pull_request:
     branches:
       - main
-      - develop
+      - releases/*
       - release-alpha/*
       - release-beta/*
       - release-rc/*
