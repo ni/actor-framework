@@ -343,9 +343,31 @@ The repository uses GitHub Actions for continuous integration:
 | `ci.yml` | Runs on PRs — validates builds and tests |
 | `build-vi-package.yml` | Builds the VIPM package |
 | `run-unit-tests.yml` | Executes unit tests |
+| [`lunit-container-tests.yml`](.github/workflows/lunit-container-tests.yml) | Runs migrated LUnit tests in a Linux LabVIEW container on pushes and PRs |
 | `run-via-tests.yml` | Runs VI Analyzer tests |
 | `release.yml` | Creates tagged releases |
 | `create-distribution-artifact.yml` | Generates distribution artifacts for LabVIEW integration |
+
+The LUnit container workflow requires the migrated tests from PR #159 and repository
+secrets `VIPM_SERIAL_NUMBER`, `VIPM_FULL_NAME`, and `VIPM_EMAIL` for VIPM Pro
+activation. Fork PRs cannot access these secrets and fail with an explicit message.
+It tests the source project with 64-bit LabVIEW 2026 Q1 Patch 1, installs LUnit
+from the current VIPM feed, and requires at least 13 non-skipped passing tests.
+Before invoking LUnit CLI, the workflow launches headless LabVIEW with the source
+project and waits for VI Server on port 3363, which the CLI then connects to.
+This is intended to retain the open-project context required by the `Missing in
+Project` tests; passing `-Path` to LUnit alone did not make those tests pass.
+Startup output is collected in `labview-test.log`. A listening VI Server confirms
+server readiness, not project validity; the full test results remain the check
+that project inspection succeeds.
+Setup follows the Linux VIP build: VIPM `26.3.1-4025`, Xvfb started before VIPM
+installation, and matching Desktop/runtime startup limits. Activation has a
+600-second external limit (plus 30 seconds before forced termination);
+exit 124 indicates a timeout, not necessarily bad credentials.
+Reports and credential-redacted activation
+diagnostics are uploaded for seven days. Review logs before sharing them.
+Linux coverage does not replace Windows coverage; dependency versions are not
+fully locked, and headless activation/test execution still needs a successful CI run.
 
 > Your PR must pass **all CI checks** before it can be reviewed and merged.
 
