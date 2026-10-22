@@ -343,14 +343,15 @@ The repository uses GitHub Actions for continuous integration:
 | `ci.yml` | Runs on PRs — validates builds and tests |
 | `build-vi-package.yml` | Builds the VIPM package |
 | `run-unit-tests.yml` | Executes unit tests |
-| [`lunit-container-tests.yml`](.github/workflows/lunit-container-tests.yml) | Runs migrated LUnit tests in a Linux LabVIEW container on pushes and PRs |
+| [`lunit-container-tests.yml`](.github/workflows/lunit-container-tests.yml) | Runs migrated LUnit tests in a Linux LabVIEW container; called by `ci.yml` |
 | `run-via-tests.yml` | Runs VI Analyzer tests |
 | `release.yml` | Creates tagged releases |
 | `create-distribution-artifact.yml` | Generates distribution artifacts for LabVIEW integration |
 
-The LUnit container workflow requires the migrated tests from PR #159. It uses the
-free edition of VIPM to install LUnit, so it needs no repository secrets and also
-runs on pull requests from forks.
+The LUnit container workflow requires the migrated tests from PR #159. It runs as the
+`Run LUnit tests` job of `ci.yml`, in parallel with the VI Analyzer job, and can also
+be started manually. It uses the free edition of VIPM to install LUnit, so it needs
+no repository secrets and also runs on pull requests from forks.
 It tests the source project with 64-bit LabVIEW 2026 Q1 Patch 1, installs LUnit
 from the current VIPM feed, and requires at least 13 non-skipped passing tests.
 Before invoking LUnit CLI, the workflow launches headless LabVIEW with the source

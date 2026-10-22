@@ -1,17 +1,12 @@
 name: LUnit Tests on LV Container
 
+# Called by ci.yml; can also be run manually.
 on:
-  push:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: lunit-container-${{ github.repository }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   LABVIEW_IMAGE: nationalinstruments/labview:2026q1patch1-linux
