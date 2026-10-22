@@ -109,12 +109,22 @@ jobs:
           [[ "$ready" == true ]] || { echo "LabVIEW VI Server readiness timed out." >&2; exit 1; }
           vipm install -y astemes_lib_lunit astemes_lib_lunit_cli \
             --labview-version "$LV_YEAR" --labview-bitness 64
-          vipm list --installed --labview-version "$LV_YEAR" --labview-bitness 64 |
-            tee /unit-test-results/installed-packages.log
-          if [[ ! -d "/usr/local/natinst/LabVIEW-${LV_YEAR}-64/vi.lib/Astemes/LUnit CLI/LUnitCLI" ]]; then
-            echo "The native LUnit CLI operation was not installed." >&2
-            exit 1
+          # Diagnostic only: vipm list has crashed (SIGSEGV) after a successful install.
+          # The folder checks below decide whether LUnit was installed.
+          list_status=0
+          vipm list --installed --labview-version "$LV_YEAR" --labview-bitness 64 \
+            > /unit-test-results/installed-packages.log 2>&1 || list_status=$?
+          cat /unit-test-results/installed-packages.log
+          if (( list_status != 0 )); then
+            echo "::warning::vipm list exited with code $list_status; continuing because vipm install succeeded."
           fi
+          vi_lib="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/vi.lib/Astemes"
+          for dir in "$vi_lib/LUnit" "$vi_lib/LUnit CLI/LUnitCLI"; do
+            if [[ ! -d "$dir" ]]; then
+              echo "LUnit was not installed: missing $dir" >&2
+              exit 1
+            fi
+          done
           SETUP
 
       - name: Restart container and copy source
