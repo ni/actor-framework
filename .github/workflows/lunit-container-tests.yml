@@ -1,0 +1,295 @@
+name: LUnit Tests on LV Container
+
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lunit-container-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  LABVIEW_IMAGE: nationalinstruments/labview:2026q1patch1-linux
+  AF_CONTAINER_NAME: af-lunit-${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  lunit-tests:
+    name: Run LUnit tests (Linux container)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check PR trust boundary
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::Fork PRs cannot access VIPM Pro credentials. A maintainer must review and push changes to a trusted branch. Do not use pull_request_target to run fork code with secrets."
+          exit 1
+
+      - name: Checkout source and migrated tests
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Check VIPM activation configuration
+        env:
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+        run: |
+          for name in VIPM_SERIAL_NUMBER VIPM_FULL_NAME VIPM_EMAIL; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Required repository secret is missing: $name"
+              exit 1
+            fi
+          done
+
+      - name: Pull and inspect Linux LabVIEW image
+        run: |
+          [[ "$(docker info --format '{{.OSType}}')" == linux ]] || {
+            echo "::error::A running Docker engine in Linux-container mode is required."
+            exit 1
+          }
+          docker pull "$LABVIEW_IMAGE"
+          docker image inspect "$LABVIEW_IMAGE" > "$RUNNER_TEMP/labview-image.json"
+          jq -e '.[0] | .Os == "linux" and .Architecture == "amd64"' "$RUNNER_TEMP/labview-image.json"
+          lv_year=$(jq -er '.[0].Config.Env[] | select(test("^LV_YEAR=[0-9]{4}$")) | sub("^LV_YEAR="; "")' "$RUNNER_TEMP/labview-image.json")
+          echo "LV_YEAR=$lv_year" >> "$GITHUB_ENV"
+
+      - name: Start container
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/lunit-results"
+          echo "Starting Linux container $AF_CONTAINER_NAME" > "$GITHUB_WORKSPACE/lunit-results/container-lifecycle.log"
+          docker create --name "$AF_CONTAINER_NAME" --user root --entrypoint /bin/bash \
+            "$LABVIEW_IMAGE" -c "sleep 7200"
+          echo "AF_CONTAINER_CREATED=true" >> "$GITHUB_ENV"
+          docker start "$AF_CONTAINER_NAME"
+          docker exec "$AF_CONTAINER_NAME" mkdir -p /unit-test-results
+
+      - name: Install VIPM and LUnit inside container
+        timeout-minutes: 25
+        env:
+          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+        run: |
+          docker exec -i \
+            -e VIPM_SERIAL_NUMBER -e VIPM_FULL_NAME -e VIPM_EMAIL \
+            -e LV_YEAR \
+            "$AF_CONTAINER_NAME" bash -se <<'SETUP'
+          set -Eeuo pipefail
+          exec > >(tee -a /unit-test-results/setup.log) 2>&1
+          export DEBIAN_FRONTEND=noninteractive VIPM_NONINTERACTIVE=1 VIPM_TIMEOUT=900 NO_COLOR=1
+          export VIPM_DEBUG=1 VIPM_DESKTOP_LIVELINESS_TIMEOUT=900 VIPM_LABVIEW_LAUNCH_TIMEOUT=300
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl xvfb x11-utils
+
+          export DISPLAY=:99
+          mkdir -p /tmp/natinst
+          echo 1 > /tmp/natinst/LVContainer.txt
+          Xvfb "$DISPLAY" -screen 0 1280x720x24 -ac +extension GLX +render -noreset \
+            > /unit-test-results/xvfb-setup.log 2>&1 &
+          xvfb_pid=$!
+          ready=false
+          for (( attempt=0; attempt<30; attempt++ )); do
+            kill -0 "$xvfb_pid" || { echo "Xvfb exited; see xvfb-setup.log." >&2; exit 1; }
+            if xdpyinfo -display "$DISPLAY" > /dev/null 2>&1; then ready=true; break; fi
+            sleep 1
+          done
+          [[ "$ready" == true ]] || { echo "Xvfb readiness timed out." >&2; exit 1; }
+
+          installer=$(mktemp --suffix=.deb)
+          trap 'rm -f -- "$installer"' EXIT
+          curl --fail --location --retry 3 --retry-all-errors --max-time 120 \
+            https://traffic.libsyn.com/secure/jkinc/vipm_26.3.1-4025_amd64.deb \
+            --output "$installer"
+          if ! dpkg -i "$installer"; then
+            apt-get -f install -y
+            dpkg -i "$installer"
+          fi
+          rm -f -- "$installer"
+          trap - EXIT
+          command -v vipm
+          dpkg-query -W -f='${Package} ${Version}\n' vipm |
+            tee /unit-test-results/vipm-version.log
+
+          for name in VIPM_SERIAL_NUMBER VIPM_FULL_NAME VIPM_EMAIL; do
+            value="${!name:-}"
+            if [[ -z "$value" || "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+              echo "Activation variable must be nonempty and single-line: $name" >&2
+              exit 2
+            fi
+          done
+          activation_log=$(mktemp)
+          trap 'rm -f -- "$activation_log"' EXIT
+          echo "Activating VIPM Pro using the VIP build setup (600-second hard limit)."
+          status=0
+          timeout --signal=TERM --kill-after=30s 600s vipm activate \
+            --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL" \
+            > "$activation_log" 2>&1 || status=$?
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            for name in VIPM_SERIAL_NUMBER VIPM_FULL_NAME VIPM_EMAIL; do
+              value="${!name}"
+              line="${line//"$value"/[REDACTED]}"
+            done
+            printf '%s\n' "$line"
+          done < "$activation_log" > /unit-test-results/vipm-activation.log
+          cat /unit-test-results/vipm-activation.log
+          if (( status != 0 )); then
+            echo "VIPM activation failed (exit $status). Exit 124 indicates timeout, not necessarily invalid credentials." >&2
+            exit "$status"
+          fi
+          rm -f -- "$activation_log"
+          trap - EXIT
+          unset VIPM_SERIAL_NUMBER VIPM_FULL_NAME VIPM_EMAIL
+          echo "VIPM Pro activation succeeded."
+
+          vipm version
+          timeout --signal=TERM --kill-after=30s 900s vipm refresh --verbose
+          [[ "$LV_YEAR" =~ ^[0-9]{4}$ ]] && (( LV_YEAR >= 2026 )) || {
+            echo "Headless execution requires LabVIEW 2026 or later." >&2; exit 1;
+          }
+          labview="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/labviewprofull"
+          "$labview" --headless > /unit-test-results/labview-setup.log 2>&1 &
+          labview_pid=$!
+          ready=false
+          for (( attempt=0; attempt<90; attempt++ )); do
+            kill -0 "$labview_pid" || { echo "LabVIEW exited; see labview-setup.log." >&2; exit 1; }
+            if (echo > /dev/tcp/127.0.0.1/3363) 2>/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          [[ "$ready" == true ]] || { echo "LabVIEW VI Server readiness timed out." >&2; exit 1; }
+          vipm install -y astemes_lib_lunit astemes_lib_lunit_cli \
+            --labview-version "$LV_YEAR" --labview-bitness 64
+          vipm list --installed --labview-version "$LV_YEAR" --labview-bitness 64 |
+            tee /unit-test-results/installed-packages.log
+          if [[ ! -d "/usr/local/natinst/LabVIEW-${LV_YEAR}-64/vi.lib/Astemes/LUnit CLI/LUnitCLI" ]]; then
+            echo "The native LUnit CLI operation was not installed." >&2
+            exit 1
+          fi
+          SETUP
+
+      - name: Restart container and copy source
+        run: |
+          # Discard the LabVIEW instance used by VIPM before starting LabVIEW CLI.
+          docker restart "$AF_CONTAINER_NAME"
+          docker exec "$AF_CONTAINER_NAME" mkdir -p /actor-framework
+          docker cp "$GITHUB_WORKSPACE/." "$AF_CONTAINER_NAME:/actor-framework"
+
+      - name: Run LUnit through native LabVIEW CLI
+        id: run-tests
+        timeout-minutes: 20
+        run: |
+          docker exec -i -e LV_YEAR "$AF_CONTAINER_NAME" bash -se <<'TEST'
+          set -Eeuo pipefail
+          exec > >(tee -a /unit-test-results/test.log) 2>&1
+          export DISPLAY=:99
+          mkdir -p /tmp/natinst
+          echo 1 > /tmp/natinst/LVContainer.txt
+          Xvfb "$DISPLAY" -screen 0 1280x720x24 -ac +extension GLX +render -noreset \
+            > /unit-test-results/xvfb-test.log 2>&1 &
+          xvfb_pid=$!
+          ready=false
+          for (( attempt=0; attempt<30; attempt++ )); do
+            kill -0 "$xvfb_pid" || { echo "Xvfb exited; see xvfb-test.log." >&2; exit 1; }
+            if xdpyinfo -display "$DISPLAY" > /dev/null 2>&1; then ready=true; break; fi
+            sleep 1
+          done
+          [[ "$ready" == true ]] || { echo "Xvfb readiness timed out." >&2; exit 1; }
+          project="/actor-framework/Core/Actor Framework Core.lvproj"
+          if [[ ! -f "$project" || ! -d "/actor-framework/Test/Unit Tests" ]]; then
+            echo "The migrated LUnit project or test suite is missing." >&2
+            exit 1
+          fi
+          cd /actor-framework
+          # Project-inspection tests require an open project, not only test discovery from its path.
+          labview="/usr/local/natinst/LabVIEW-${LV_YEAR}-64/labviewprofull"
+          echo "Starting headless LabVIEW with project: $project"
+          "$labview" --headless "$project" > /unit-test-results/labview-test.log 2>&1 &
+          labview_pid=$!
+          ready=false
+          for (( attempt=0; attempt<90; attempt++ )); do
+            kill -0 "$labview_pid" || { echo "LabVIEW exited; see labview-test.log." >&2; exit 1; }
+            if (echo > /dev/tcp/127.0.0.1/3363) 2>/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          [[ "$ready" == true ]] || { echo "LabVIEW VI Server readiness timed out; see labview-test.log." >&2; exit 1; }
+          LabVIEWCLI -OperationName LUnit \
+            -LabVIEWPath "$labview" -PortNumber 3363 \
+            -AdditionalOperationDirectory "/usr/local/natinst/LabVIEW-${LV_YEAR}-64/vi.lib/Astemes/LUnit CLI" \
+            -Path "$project" -ReportPath /unit-test-results/lunit.xml -LogToConsole TRUE -Headless
+          TEST
+
+      - name: Collect container reports and logs
+        if: always() && env.AF_CONTAINER_CREATED == 'true'
+        run: |
+          set +e
+          docker logs "$AF_CONTAINER_NAME" > "$GITHUB_WORKSPACE/lunit-results/docker.log" 2>&1
+          log_status=$?
+          docker cp "$AF_CONTAINER_NAME:/unit-test-results/." "$GITHUB_WORKSPACE/lunit-results" \
+            2>> "$GITHUB_WORKSPACE/lunit-results/container-lifecycle.log"
+          copy_status=$?
+          if (( log_status != 0 || copy_status != 0 )); then
+            echo "::error::Log collection failed (docker logs: $log_status, docker cp: $copy_status). See container-lifecycle.log."
+            exit 1
+          fi
+
+      - name: Validate JUnit report and test discovery
+        if: ${{ !cancelled() && steps.run-tests.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $path = "$env:GITHUB_WORKSPACE/lunit-results/lunit.xml"
+          if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "LUnit did not produce a JUnit report at $path"
+          }
+          $settings = [System.Xml.XmlReaderSettings]::new()
+          $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+          $settings.XmlResolver = $null
+          $reader = [System.Xml.XmlReader]::Create($path, $settings)
+          try {
+            $report = [System.Xml.XmlDocument]::new()
+            $report.XmlResolver = $null
+            $report.Load($reader)
+          } finally {
+            $reader.Dispose()
+          }
+          if ($report.DocumentElement.Name -notin @('testsuite', 'testsuites')) {
+            throw 'Expected a testsuite or testsuites root element.'
+          }
+          if ($report.SelectNodes('//failure | //error').Count -gt 0) {
+            throw 'LUnit reported test failures or errors.'
+          }
+          foreach ($suite in $report.SelectNodes('//testsuite | /testsuites')) {
+            foreach ($attribute in @('failures', 'errors')) {
+              $value = $suite.GetAttribute($attribute)
+              if ($value -and $value -notmatch '^0+$') {
+                throw "Nonzero or invalid $attribute count: $value"
+              }
+            }
+          }
+          $skipped = $report.SelectNodes('//testcase[skipped]').Count
+          $executed = $report.SelectNodes('//testcase').Count - $skipped
+          if ($executed -lt 13) { throw "LUnit executed $executed tests; expected at least 13." }
+          "LUnit: $executed tests executed; $skipped skipped." >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload LUnit reports and logs
+        if: always() && env.AF_CONTAINER_CREATED == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: lunit-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: lunit-results
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove LabVIEW container
+        if: always() && env.AF_CONTAINER_CREATED == 'true'
+        run: docker rm -f "$AF_CONTAINER_NAME"
