@@ -28,29 +28,10 @@ jobs:
         shell: bash
 
     steps:
-      - name: Check PR trust boundary
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
-        run: |
-          echo "::error::Fork PRs cannot access VIPM Pro credentials. A maintainer must review and push changes to a trusted branch. Do not use pull_request_target to run fork code with secrets."
-          exit 1
-
       - name: Checkout source and migrated tests
         uses: actions/checkout@v5
         with:
           persist-credentials: false
-
-      - name: Check VIPM activation configuration
-        env:
-          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
-          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
-          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
-        run: |
-          for name in VIPM_SERIAL_NUMBER VIPM_FULL_NAME VIPM_EMAIL; do
-            if [[ -z "${!name}" ]]; then
-              echo "::error::Required repository secret is missing: $name"
-              exit 1
-            fi
-          done
 
       - name: Pull and inspect Linux LabVIEW image
         run: |
@@ -76,13 +57,8 @@ jobs:
 
       - name: Install VIPM and LUnit inside container
         timeout-minutes: 25
-        env:
-          VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
-          VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
-          VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
         run: |
           docker exec -i \
-            -e VIPM_SERIAL_NUMBER -e VIPM_FULL_NAME -e VIPM_EMAIL \
             -e LV_YEAR \
             "$AF_CONTAINER_NAME" bash -se <<'SETUP'
           set -Eeuo pipefail
@@ -120,37 +96,6 @@ jobs:
           command -v vipm
           dpkg-query -W -f='${Package} ${Version}\n' vipm |
             tee /unit-test-results/vipm-version.log
-
-          for name in VIPM_SERIAL_NUMBER VIPM_FULL_NAME VIPM_EMAIL; do
-            value="${!name:-}"
-            if [[ -z "$value" || "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
-              echo "Activation variable must be nonempty and single-line: $name" >&2
-              exit 2
-            fi
-          done
-          activation_log=$(mktemp)
-          trap 'rm -f -- "$activation_log"' EXIT
-          echo "Activating VIPM Pro using the VIP build setup (600-second hard limit)."
-          status=0
-          timeout --signal=TERM --kill-after=30s 600s vipm activate \
-            --serial-number "$VIPM_SERIAL_NUMBER" --name "$VIPM_FULL_NAME" --email "$VIPM_EMAIL" \
-            > "$activation_log" 2>&1 || status=$?
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            for name in VIPM_SERIAL_NUMBER VIPM_FULL_NAME VIPM_EMAIL; do
-              value="${!name}"
-              line="${line//"$value"/[REDACTED]}"
-            done
-            printf '%s\n' "$line"
-          done < "$activation_log" > /unit-test-results/vipm-activation.log
-          cat /unit-test-results/vipm-activation.log
-          if (( status != 0 )); then
-            echo "VIPM activation failed (exit $status). Exit 124 indicates timeout, not necessarily invalid credentials." >&2
-            exit "$status"
-          fi
-          rm -f -- "$activation_log"
-          trap - EXIT
-          unset VIPM_SERIAL_NUMBER VIPM_FULL_NAME VIPM_EMAIL
-          echo "VIPM Pro activation succeeded."
 
           vipm version
           timeout --signal=TERM --kill-after=30s 900s vipm refresh --verbose
