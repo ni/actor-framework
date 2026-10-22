@@ -62,6 +62,10 @@ jobs:
     if: github.event_name == 'push'
     uses: ./.github/workflows/generate-sbom.yml
 
+  lunit-tests:
+    name: Run LUnit tests
+    uses: ./.github/workflows/lunit-container-tests.yml
+
   create-artifact:
     name: Create distribution artifact
     needs: via-tests
