@@ -57,6 +57,10 @@ jobs:
           path: vi-analyzer-report.htm
           retention-days: 7 
  
+  generate-sbom:
+    name: Generate SBOM
+    uses: ./.github/workflows/generate-sbom.yml
+
   create-artifact:
     name: Create distribution artifact
     needs: via-tests
