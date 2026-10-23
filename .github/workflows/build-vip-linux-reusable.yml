@@ -1,9 +1,10 @@
 name: Build AF VIP with shared ni/open-source workflow
 
 on:
+  # Merges land as pushes to main; no pull_request trigger.
   push:
     branches:
-      - users/amrutha/vip-build-shared-workflow
+      - main
   workflow_dispatch:
     inputs:
       labview_version:
