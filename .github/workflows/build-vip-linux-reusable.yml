@@ -1,12 +1,10 @@
-name: Build AF VIP with shared ni/open-source workflow
+name: Build Actor Framework VIP
 
 on:
   # Merges land as pushes to main; no pull_request trigger.
   push:
     branches:
       - main
-      # TEMP: remove before merging; enables a one-off test run.
-      - users/amrutha/linux-vip-build
   workflow_dispatch:
     inputs:
       labview_version:
@@ -26,7 +24,7 @@ jobs:
       upload-artifact: true
 
   build-vip:
-    name: Build VIP with shared workflow
+    name: Build VIP
     needs: create-distribution
     # TODO: switch to @actions once ni/open-source merges build-vip-docker-linux.
     uses: ni/open-source/.github/workflows/reusable-build-vip-linux.yml@users/amrutha/build-vip-docker-linux
@@ -38,8 +36,8 @@ jobs:
       vipb_path: builds/logs/vip-linux/Actor Framework.linux.vipb
       source_directory: /tmp/af-source/Core
       desktop_liveliness_timeout: '900'
-      vip_artifact_name: actor-framework-vip-shared-${{ github.run_id }}
-      logs_artifact_name: actor-framework-vip-shared-logs-${{ github.run_id }}
+      vip_artifact_name: actor_framework_vip
+      logs_artifact_name: actor_framework_vip_logs
     secrets:
       VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
       VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
