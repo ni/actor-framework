@@ -64,6 +64,29 @@ jobs:
     with:
       upload-artifact: true
 
+  build-vip:
+    name: Build VIP
+    needs: create-artifact
+    if: github.event_name == 'push'
+    permissions:
+      actions: read
+      contents: read
+    uses: ni/open-source/.github/workflows/reusable-build-vip-linux.yml@actions
+    with:
+      labview_version: '2026q1'
+      download_artifact_name: actor-framework-distribution
+      download_path: .af-distribution
+      pre_build_script: pipeline/scripts/Prepare-AF-Linux-Vip.sh
+      vipb_path: builds/logs/vip-linux/Actor Framework.linux.vipb
+      source_directory: /tmp/af-source/Core
+      desktop_liveliness_timeout: '900'
+      vip_artifact_name: actor_framework_vip
+      logs_artifact_name: actor_framework_vip_logs
+    secrets:
+      VIPM_SERIAL_NUMBER: ${{ secrets.VIPM_SERIAL_NUMBER }}
+      VIPM_FULL_NAME: ${{ secrets.VIPM_FULL_NAME }}
+      VIPM_EMAIL: ${{ secrets.VIPM_EMAIL }}
+
   install-into-labview:
     name: Mass Compile Actor Framework VIs
     needs: create-artifact
