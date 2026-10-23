@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+      # TEMP: remove before merging; enables a one-off test run.
+      - users/amrutha/linux-vip-build
   workflow_dispatch:
     inputs:
       labview_version:
