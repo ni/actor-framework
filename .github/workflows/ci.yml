@@ -59,6 +59,7 @@ jobs:
  
   generate-sbom:
     name: Generate SBOM
+    if: github.event_name == 'push'
     uses: ./.github/workflows/generate-sbom.yml
 
   create-artifact:
