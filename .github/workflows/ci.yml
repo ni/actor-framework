@@ -34,7 +34,7 @@ jobs:
   via-tests:
     name: Run VI Analyzer tests
     runs-on: ubuntu-latest
-
+    timeout-minutes: 25
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -47,7 +47,7 @@ jobs:
           config_path: ${{ github.event_name == 'workflow_dispatch' && '.github/via_config/Actor_Framework.viancfg' || '' }}
           template_path: '.github/via_config/Actor_Framework.viancfg'
           base_branch: origin/${{ github.event.pull_request.base.ref || 'main' }}
-          labview_version: 'latest-linux'
+          dependency_file: '.github/labview-dependencies.toml'
 
       - name: Upload VI Analyzer Report
         uses: actions/upload-artifact@v6
