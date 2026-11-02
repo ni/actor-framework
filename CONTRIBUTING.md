@@ -298,7 +298,8 @@ The CI pipeline runs **VI Analyzer (VIA)** tests on every PR to enforce code qua
 
 **How VI Analyzer runs in CI:**
 
-- VI Analyzer runs in a **Docker container** with LabVIEW (Linux) via the `ni/open-source/via-lv-docker@actions` GitHub Action
+- VI Analyzer runs in a **Docker container** using the default LabVIEW image of the `ni/open-source/via-lv-docker` GitHub Action in both `ci.yml` and `run-via-tests.yml`
+- The action installs free VIPM and the packages listed in [`.github/labview-dependencies.toml`](.github/labview-dependencies.toml) in the analyzer container before analysis. This supplies LUnit and LUnit CLI without secrets or a separately prepared image.
 - It analyzes **only the files changed in your PR** by comparing against the PR's target branch
 - On manual dispatch, it can analyze the full codebase using the `.viancfg` configuration
 - Results are uploaded as an **artifact** (`vi-analyzer-report.htm`) you can download and review
@@ -343,9 +344,29 @@ The repository uses GitHub Actions for continuous integration:
 | `ci.yml` | Runs on PRs — validates builds and tests |
 | `build-vi-package.yml` | Builds the VIPM package |
 | `run-unit-tests.yml` | Executes unit tests |
+| [`lunit-container-tests.yml`](.github/workflows/lunit-container-tests.yml) | Runs migrated LUnit tests in a Linux LabVIEW container; called by `ci.yml` |
 | `run-via-tests.yml` | Runs VI Analyzer tests |
 | `release.yml` | Creates tagged releases |
 | `create-distribution-artifact.yml` | Generates distribution artifacts for LabVIEW integration |
+
+The LUnit container workflow requires the migrated tests from PR #159. It runs as the
+`Run LUnit tests` job of `ci.yml`, in parallel with the VI Analyzer job, and can also
+be started manually. It uses the free edition of VIPM to install LUnit, so it needs
+no repository secrets and also runs on pull requests from forks.
+It tests the source project with 64-bit LabVIEW 2026 Q1 Patch 1, installs LUnit
+from the current VIPM feed, and requires at least 13 non-skipped passing tests.
+Before invoking LUnit CLI, the workflow launches headless LabVIEW with the source
+project and waits for VI Server on port 3363, which the CLI then connects to.
+This keeps the project open, which the `Missing in Project` tests require;
+passing `-Path` to LUnit alone did not make those tests pass.
+Startup output is collected in `labview-test.log`. A listening VI Server confirms
+server readiness, not project validity; the full test results remain the check
+that project inspection succeeds.
+Setup follows the Linux VIP build: VIPM `26.3.1-4025`, Xvfb started before VIPM
+installation, and matching Desktop/runtime startup limits.
+Reports and setup logs are uploaded for seven days.
+Linux coverage does not replace Windows coverage, and dependency versions are not
+fully locked.
 
 > Your PR must pass **all CI checks** before it can be reviewed and merged.
 

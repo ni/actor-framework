@@ -1,0 +1,3 @@
+[dependencies]
+astemes_lib_lunit = "latest"
+astemes_lib_lunit_cli = "latest"
